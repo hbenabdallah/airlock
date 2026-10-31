@@ -23,25 +23,21 @@ PHP 8.5. Pick one of the three ways below, then [try the demo](#try-the-demo).
 
 Each [release](https://github.com/hbenabdallah/airlock/releases) holds one executable per platform, PHP 8.5 included:
 `airlock-macos-aarch64` (Apple Silicon), `airlock-linux-x86_64` and `airlock-linux-aarch64`, with their `SHA256SUMS`.
-Pick yours:
+The install script picks the one for this machine, checks it against `SHA256SUMS` and puts it in `~/.local/bin`
+(`AIRLOCK_INSTALL_DIR` to choose another directory). Read it first if you like: [install.sh](install.sh).
 
 ```bash
-TARGET=macos-aarch64
+curl -fsSL https://raw.githubusercontent.com/hbenabdallah/airlock/main/install.sh | sh
 ```
+
+A given version rather than the latest:
 
 ```bash
-mkdir -p ~/.local/bin && curl -fsSLo ~/.local/bin/airlock "https://github.com/hbenabdallah/airlock/releases/latest/download/airlock-$TARGET"
+curl -fsSL https://raw.githubusercontent.com/hbenabdallah/airlock/main/install.sh | sh -s -- 1.0.0
 ```
 
-Check it against the release's checksums, then make it executable:
-
-```bash
-curl -fsSL https://github.com/hbenabdallah/airlock/releases/latest/download/SHA256SUMS | grep "airlock-$TARGET"
-```
-
-```bash
-shasum -a 256 ~/.local/bin/airlock && chmod +x ~/.local/bin/airlock
-```
+Or by hand: download `airlock-<platform>` and `SHA256SUMS` from the release, compare `shasum -a 256 airlock-<platform>`
+with its line, then `chmod +x` it.
 
 On Linux, install bubblewrap as [below](#natively-with-php-85) (macOS has `sandbox-exec` built in). Then, from the
 project you want Airlock to guard:
