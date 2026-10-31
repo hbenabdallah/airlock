@@ -149,11 +149,12 @@ final class ConfigureCommandTest extends KernelTestCase
     public function testCheckCalibratesTheModelsTheEnvironmentSetsOverTheFile(): void
     {
         $this->file->write(new ModelSettings(RecordedResponses::BASE_URL, 'secret-key', RecordedModelApi::BLIND, 'test/risk'));
+        $_SERVER['AIRLOCK_OUTPUT_CHECK_MODEL'] = $_ENV['AIRLOCK_OUTPUT_CHECK_MODEL'] = 'test/output-check';
         $tester = $this->tester();
 
         $status = $tester->execute(['--check' => true]);
 
-        self::assertSame(Command::SUCCESS, $status, 'The test environment sets AIRLOCK_OUTPUT_CHECK_MODEL to a fit model, and it wins over the blind one in the file.');
+        self::assertSame(Command::SUCCESS, $status, 'AIRLOCK_OUTPUT_CHECK_MODEL names a fit model, and it wins over the blind one in the file.');
         self::assertStringContainsString('test/output-check  output check: passes', $tester->getDisplay());
     }
 
