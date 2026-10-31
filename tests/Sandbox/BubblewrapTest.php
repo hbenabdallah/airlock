@@ -181,6 +181,18 @@ final class BubblewrapTest extends TestCase
         self::assertStringContainsString('end', $result->output);
     }
 
+    public function testTheUsersRegistryTokensCannotBeRead(): void
+    {
+        $this->filesystem->dumpFile($this->root.'/home/.npmrc', 'NPM-TOKEN-VALUE');
+        $this->filesystem->dumpFile($this->root.'/home/.config/composer/auth.json', 'COMPOSER-TOKEN-VALUE');
+
+        $result = $this->runInSandbox(\sprintf('cat %1$s/home/.npmrc %1$s/home/.config/composer/auth.json; echo end', $this->root));
+
+        self::assertStringNotContainsString('NPM-TOKEN-VALUE', $result->output);
+        self::assertStringNotContainsString('COMPOSER-TOKEN-VALUE', $result->output);
+        self::assertStringContainsString('end', $result->output);
+    }
+
     public function testAirlocksOwnFilesCannotBeRead(): void
     {
         $result = $this->runInSandbox(\sprintf('cat %1$s/home/.config/airlock/grants.yaml %1$s/airlock/.env.local; echo end', $this->root));

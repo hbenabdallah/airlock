@@ -23,7 +23,9 @@ final readonly class SandboxPaths
     /** Under the home, where the user's keys and tokens live. */
     private const array KEYS = [
         '.ssh', '.gnupg', '.aws', '.azure', '.kube', '.config/gcloud', '.config/gh', '.netrc', '.git-credentials',
-        '.pypirc', '.docker/config.json',
+        '.pypirc', '.docker/config.json', '.npmrc', '.composer/auth.json', '.config/composer/auth.json',
+        '.cargo/credentials', '.cargo/credentials.toml', '.gem/credentials', '.vault-token',
+        '.terraform.d/credentials.tfrc.json',
     ];
 
     /** Under Airlock's own directory, what holds its secrets. */
