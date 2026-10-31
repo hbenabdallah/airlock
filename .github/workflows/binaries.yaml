@@ -78,6 +78,8 @@ jobs:
 
             - name: Build the static PHP runtime
               if: steps.runtime.outputs.cache-hit != 'true'
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
               run: |
                   curl -fsSL -o spc.tgz "https://github.com/crazywhalecc/static-php-cli/releases/latest/download/spc-${{ matrix.target }}.tar.gz"
                   tar -xzf spc.tgz
