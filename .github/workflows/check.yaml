@@ -23,6 +23,32 @@ jobs:
                   sudo apt-get install -y bubblewrap
                   sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+            - run: composer validate --strict
+
             - uses: ramsey/composer-install@v3
 
+            - run: composer audit
+
             - run: composer check
+
+            - name: Run one command through the server, as a client would
+              run: cd "$(mktemp -d)" && python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" -- php "$GITHUB_WORKSPACE/bin/console" mcp:server
+
+    docker:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v5
+
+            - name: Allow bubblewrap's user namespaces
+              run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+            - run: docker build -t airlock .
+
+            - name: Run one command through the image, as the README starts it
+              run: |
+                  mkdir -p "$HOME/.config/airlock"
+                  cd "$(mktemp -d)"
+                  python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" -- docker run --rm -i -u "$(id -u):$(id -g)" \
+                    --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
+                    -e AIRLOCK_NVIDIA_API_KEY -e XDG_CONFIG_HOME=/airlock-config \
+                    -v "$HOME/.config/airlock:/airlock-config/airlock" -v "$PWD:$PWD" -w "$PWD" airlock

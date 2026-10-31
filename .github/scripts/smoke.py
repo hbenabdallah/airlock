@@ -1,0 +1,46 @@
+"""Starts Airlock the way a client does, with the command given after --, and runs one command through it.
+
+The first call must return the form, sandboxed with bubblewrap; the retry with the signed state and "once" must run
+the command and return its output marked as data.
+"""
+
+import json
+import subprocess
+import sys
+
+META = {
+    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+    "io.modelcontextprotocol/clientCapabilities": {"elicitation": {"form": {}}},
+}
+COMMAND = "echo airlock-smoke > smoke.txt && cat smoke.txt"
+
+
+def call(server, request_id, extra):
+    params = {"name": "run_command", "arguments": {"command": COMMAND}, "_meta": META, **extra}
+    server.stdin.write(json.dumps({"jsonrpc": "2.0", "id": request_id, "method": "tools/call", "params": params}) + "\n")
+    server.stdin.flush()
+    line = server.stdout.readline()
+    if not line:
+        sys.exit("The server closed its output:\n" + server.stderr.read())
+    return json.loads(line)["result"]
+
+
+def main():
+    server = subprocess.Popen(sys.argv[sys.argv.index("--") + 1:], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        asked = call(server, 1, {})
+        assert asked.get("resultType") == "input_required", asked
+        message = asked["inputRequests"]["approval"]["params"]["message"]
+        assert "Sandbox (bubblewrap)" in message, message
+
+        ran = call(server, 2, {"requestState": asked["requestState"], "inputResponses": {"approval": {"action": "accept", "content": {"decision": "once"}}}})
+        text = ran["content"][0]["text"]
+        assert not ran.get("isError"), text
+        assert '<command-output exit-code="0">\nairlock-smoke\n</command-output>' in text, text
+        print(text)
+    finally:
+        server.stdin.close()
+        server.wait(timeout=30)
+
+
+main()

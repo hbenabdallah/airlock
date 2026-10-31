@@ -33,6 +33,9 @@ docker build -t airlock ~/airlock
 mkdir -p ~/.config/airlock
 ```
 
+On an Ubuntu 23.10 or later host, also allow the user namespaces bubblewrap needs, [as below](#natively-with-php-85):
+the restriction reaches into containers.
+
 Then, from the project you want Airlock to guard (here, the demo):
 
 ```bash
