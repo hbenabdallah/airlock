@@ -1,6 +1,6 @@
 """Starts Airlock the way a client does, with the command given after --, and runs one command through it.
 
-The first call must return the form, sandboxed with bubblewrap; the retry with the signed state and "once" must run
+The first call must return the form, sandboxed (bubblewrap or sandbox-exec); the retry with the signed state and "once" must run
 the command and return its output marked as data.
 """
 
@@ -31,7 +31,7 @@ def main():
         asked = call(server, 1, {})
         assert asked.get("resultType") == "input_required", asked
         message = asked["inputRequests"]["approval"]["params"]["message"]
-        assert "Sandbox (bubblewrap)" in message, message
+        assert "Sandbox (bubblewrap)" in message or "Sandbox (sandbox-exec)" in message, message
 
         ran = call(server, 2, {"requestState": asked["requestState"], "inputResponses": {"approval": {"action": "accept", "content": {"decision": "once"}}}})
         text = ran["content"][0]["text"]
