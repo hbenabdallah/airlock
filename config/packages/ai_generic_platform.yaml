@@ -1,4 +1,4 @@
-# Any provider that speaks the OpenAI chat completions API with structured output: the generic platform calls it.
+# The chat completions API the model checks ask, set in the environment: the generic platform calls it.
 ai:
     platform:
         generic:
@@ -13,6 +13,6 @@ framework:
     http_client:
         scoped_clients:
             models.client:
-                base_uri: '%env(AIRLOCK_AI_BASE_URL)%'
+                scope: '.*'
                 timeout: '%env(float:AIRLOCK_AI_TIMEOUT)%'
                 max_duration: '%env(float:AIRLOCK_AI_TIMEOUT)%'

@@ -296,8 +296,8 @@ final class RunCommandOverStdioTest extends TestCase
         $answer = $client->request($this->modernCall(2, 'cat README.md', 'once', $this->askState($client, 'cat README.md')));
 
         self::assertFalse($this->field($answer, 'result', 'isError'));
-        self::assertStringContainsString('It was not checked for prompt injection: no API key is configured.', $this->text($answer, 'result', 'content', 0, 'text'));
-        self::assertSame(['output_check' => 'not_checked', 'output_check_reason' => 'no_api_key'], array_intersect_key($this->lastAuditEntry($client), ['output_check' => 0, 'output_check_reason' => 0]));
+        self::assertStringContainsString('It was not checked for prompt injection: no model API is configured.', $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertSame(['output_check' => 'not_checked', 'output_check_reason' => 'not_configured'], array_intersect_key($this->lastAuditEntry($client), ['output_check' => 0, 'output_check_reason' => 0]));
     }
 
     public function testASecretInTheOutputIsMaskedForTheAgentAndCountedInTheAuditLog(): void
@@ -328,7 +328,7 @@ final class RunCommandOverStdioTest extends TestCase
 
         $answer = $client->request($this->elicitationAnswer($client->request($this->handshakeCall(2, self::COMMAND)), 'once'));
 
-        self::assertStringContainsString("It was not checked for prompt injection: no API key is configured.\n<command-output exit-code=\"0\">\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertStringContainsString("It was not checked for prompt injection: no model API is configured.\n<command-output exit-code=\"0\">\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
     }
 
     public function testInTheHandshakeEraTheServerAsksThroughElicitationAndRunsWhenApproved(): void
