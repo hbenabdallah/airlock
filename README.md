@@ -45,7 +45,8 @@ cp -R ~/airlock/demo ~/airlock-demo && cd ~/airlock-demo
 ```bash
 claude mcp add airlock -- docker run --rm -i -u "$(id -u):$(id -g)" \
   --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
-  -e AIRLOCK_NVIDIA_API_KEY -e XDG_CONFIG_HOME=/airlock-config \
+  -e AIRLOCK_AI_BASE_URL -e AIRLOCK_AI_API_KEY -e AIRLOCK_OUTPUT_CHECK_MODEL -e AIRLOCK_RISK_MODEL \
+  -e XDG_CONFIG_HOME=/airlock-config \
   -v "$HOME/.config/airlock:/airlock-config/airlock" -v "$PWD:$PWD" -w "$PWD" airlock
 ```
 
@@ -94,22 +95,25 @@ another one.
 
 ### Optional: the model checks
 
-The output check and the plain-words line in the form use NVIDIA's API catalog. Get a free key at
-[build.nvidia.com](https://build.nvidia.com), then:
+The output check and the plain-words line in the form ask a chat model, through any API that speaks OpenAI's chat
+completions with structured output (JSON schema). By default that is NVIDIA's API catalog: get a free key at
+[build.nvidia.com](https://build.nvidia.com). Another provider is three variables away: `AIRLOCK_AI_BASE_URL` (the
+part before `/v1/chat/completions`), `AIRLOCK_OUTPUT_CHECK_MODEL` and `AIRLOCK_RISK_MODEL`.
 
-- natively, put it in `~/airlock/.env.local` (git-ignored):
-
-  ```bash
-  echo 'AIRLOCK_NVIDIA_API_KEY=nvapi-...' >> ~/airlock/.env.local
-  ```
-
-- with Docker, export it in the shell you start Claude Code from (the `-e AIRLOCK_NVIDIA_API_KEY` above passes it):
+- natively, put the key in `~/airlock/.env.local` (git-ignored):
 
   ```bash
-  export AIRLOCK_NVIDIA_API_KEY=nvapi-...
+  echo 'AIRLOCK_AI_API_KEY=nvapi-...' >> ~/airlock/.env.local
   ```
 
-Without a key everything still runs: outputs say they were not checked, and the form shows only the rule.
+- with Docker, export it in the shell you start Claude Code from (the `-e AIRLOCK_AI_API_KEY` above passes it):
+
+  ```bash
+  export AIRLOCK_AI_API_KEY=nvapi-...
+  ```
+
+Without a key everything still runs: outputs say they were not checked, and the form shows only the rule. A model
+that does not support structured output, or answers anything but the expected field, is treated the same way.
 
 ## Try the demo
 
@@ -152,10 +156,11 @@ variables, which win.
 | `AIRLOCK_TIMEOUT` | `120` | Seconds a command may run before it is stopped |
 | `AIRLOCK_PROJECT_DIR` | the current directory | The project commands run in |
 | `AIRLOCK_STATE_KEY` | a key per process | Signs the state a pending approval carries; at least 32 bytes |
-| `AIRLOCK_NVIDIA_API_KEY` | empty: checks off | Key for the output check and the plain-words line |
+| `AIRLOCK_AI_BASE_URL` | `https://integrate.api.nvidia.com` | OpenAI-compatible API the models are called through |
+| `AIRLOCK_AI_API_KEY` | empty: checks off | Key for that API |
 | `AIRLOCK_OUTPUT_CHECK_MODEL` | `minimaxai/minimax-m3.1-flash` | Model that flags prompt injections |
 | `AIRLOCK_RISK_MODEL` | `nvidia/nemotron-3.5-bolt-e4b` | Model that writes the plain-words line |
-| `AIRLOCK_MODEL_TIMEOUT` | `8` | Seconds a model may take before Airlock goes on without it |
+| `AIRLOCK_AI_TIMEOUT` | `8` | Seconds a model may take before Airlock goes on without it |
 
 No command ever sees a variable starting with `AIRLOCK_`.
 
@@ -195,7 +200,7 @@ composer check
 ```
 
 runs PHP CS Fixer, Rector, PHPStan (level max, strict rules, no baseline) and PHPUnit, as CI does. The tests never
-reach the network: model calls are answered from recorded responses in `tests/Fixtures/nvidia/`. The bubblewrap
+reach the network: model calls are answered from responses recorded from NVIDIA's API, in `tests/Fixtures/nvidia/`. The bubblewrap
 and end-to-end tests need bubblewrap working on the machine.
 
 ## License

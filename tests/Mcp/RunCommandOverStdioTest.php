@@ -84,7 +84,7 @@ final class RunCommandOverStdioTest extends TestCase
 
     public function testWithoutAnApiKeyTheFormShowsOnlyTheRule(): void
     {
-        $form = $this->firstForm($this->client(['AIRLOCK_NVIDIA_API_KEY' => '']), self::DANGEROUS);
+        $form = $this->firstForm($this->client(['AIRLOCK_AI_API_KEY' => '']), self::DANGEROUS);
 
         self::assertStringStartsWith("Asked every time: `rm -rf build`: it deletes recursively.\n\nRun this command?", $this->text($form, 'message'));
     }
@@ -291,7 +291,7 @@ final class RunCommandOverStdioTest extends TestCase
     public function testWithoutAnApiKeyTheCommandStillRunsAndTheOutputIsSaidNotChecked(): void
     {
         $this->filesystem->dumpFile($this->project.'/README.md', self::INJECTED_README);
-        $client = $this->client(['AIRLOCK_NVIDIA_API_KEY' => '']);
+        $client = $this->client(['AIRLOCK_AI_API_KEY' => '']);
 
         $answer = $client->request($this->modernCall(2, 'cat README.md', 'once', $this->askState($client, 'cat README.md')));
 
@@ -324,7 +324,7 @@ final class RunCommandOverStdioTest extends TestCase
 
     public function testInTheHandshakeEraWithoutAnApiKeyTheCommandStillRuns(): void
     {
-        $client = $this->handshakeClient(['AIRLOCK_NVIDIA_API_KEY' => '']);
+        $client = $this->handshakeClient(['AIRLOCK_AI_API_KEY' => '']);
 
         $answer = $client->request($this->elicitationAnswer($client->request($this->handshakeCall(2, self::COMMAND)), 'once'));
 

@@ -63,10 +63,11 @@ through Symfony AI.
 
 ## What Symfony AI does
 
-Both calls go to NVIDIA's API catalog through `symfony/ai-platform` and its
-generic bridge (NVIDIA speaks the OpenAI chat completions API), with Symfony
-AI's structured output: the answer is a field, not prose to parse. The models
-are set in the environment, not in the code.
+Both calls go through `symfony/ai-platform` and its generic bridge to any API
+that speaks OpenAI's chat completions, with Symfony AI's structured output: the
+answer is a field, not prose to parse. The API, its key and the models are set
+in the environment, not in the code; the default is NVIDIA's API catalog, which
+has a free tier.
 
 - **Output check.** `minimaxai/minimax-m3.1-flash` reads the output, between
   tags, and answers `clean` or `injection`. A long output is read in
@@ -86,7 +87,7 @@ Both read attacker-controlled text, so neither decides anything: a model fooled
 into "clean" leaves the output marked as data with its secrets masked, and the
 plain-words line never changes what the user may answer.
 
-Both are optional. Without an NVIDIA key, or when the model is slow, rate
+Both are optional. Without a key, or when the model is slow, rate
 limited or down, the output is marked as not checked, saying why, and the form
 shows the rule that triggered; nothing about running a command depends on a
 model being reachable.

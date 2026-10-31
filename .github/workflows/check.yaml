@@ -50,5 +50,6 @@ jobs:
                   cd "$(mktemp -d)"
                   python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" -- docker run --rm -i -u "$(id -u):$(id -g)" \
                     --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt systempaths=unconfined \
-                    -e AIRLOCK_NVIDIA_API_KEY -e XDG_CONFIG_HOME=/airlock-config \
+                    -e AIRLOCK_AI_BASE_URL -e AIRLOCK_AI_API_KEY -e AIRLOCK_OUTPUT_CHECK_MODEL -e AIRLOCK_RISK_MODEL \
+                    -e XDG_CONFIG_HOME=/airlock-config \
                     -v "$HOME/.config/airlock:/airlock-config/airlock" -v "$PWD:$PWD" -w "$PWD" airlock
