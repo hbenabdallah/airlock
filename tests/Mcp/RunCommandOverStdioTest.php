@@ -72,6 +72,37 @@ final class RunCommandOverStdioTest extends TestCase
         self::assertStringStartsWith('Asked every time: `rm -rf build`: it deletes recursively.', $this->text($form, 'message'));
     }
 
+    public function testADangerousCommandIsPutInPlainWordsUnderTheRuleNeverInsteadOfIt(): void
+    {
+        $form = $this->firstForm($this->client(), self::DANGEROUS);
+
+        self::assertStringStartsWith(
+            "Asked every time: `rm -rf build`: it deletes recursively.\nIn plain words (from a model, may be wrong): Deletes the 'build' directory and all its contents forcefully.\n\nRun this command?",
+            $this->text($form, 'message'),
+        );
+    }
+
+    public function testWithoutAnApiKeyTheFormShowsOnlyTheRule(): void
+    {
+        $form = $this->firstForm($this->client(['AIRLOCK_NVIDIA_API_KEY' => '']), self::DANGEROUS);
+
+        self::assertStringStartsWith("Asked every time: `rm -rf build`: it deletes recursively.\n\nRun this command?", $this->text($form, 'message'));
+    }
+
+    public function testACommandThatIsNotDangerousIsNotPutInPlainWords(): void
+    {
+        $form = $this->firstForm($this->client(), self::COMMAND);
+
+        self::assertStringNotContainsString('In plain words', $this->text($form, 'message'));
+    }
+
+    public function testInTheHandshakeEraADangerousCommandIsPutInPlainWordsUnderTheRule(): void
+    {
+        $ask = $this->handshakeClient()->request($this->handshakeCall(2, self::DANGEROUS));
+
+        self::assertStringStartsWith("Asked every time: `rm -rf build`: it deletes recursively.\nIn plain words (from a model, may be wrong): ", $this->text($ask, 'params', 'message'));
+    }
+
     public function testInTheModernEraAnApprovedRetryRunsTheCommandOnce(): void
     {
         $client = $this->client();

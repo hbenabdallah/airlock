@@ -22,6 +22,7 @@ use App\Policy\CommandPolicy;
 use App\Policy\InvalidPolicyException;
 use App\Policy\PolicyFiles;
 use App\Policy\Verdict;
+use App\Risk\RiskExplainer;
 use App\Shell\CommandLine;
 use App\Shell\ShellParser;
 use Mcp\Capability\Attribute\McpTool;
@@ -52,6 +53,7 @@ final readonly class RunCommandTool
         private SessionGrants $sessionGrants,
         private ProjectGrants $projectGrants,
         private ApprovalForm $approvalForm,
+        private RiskExplainer $riskExplainer,
         private Approvals $approvals,
         private CommandRunner $runner,
         private InjectionClassifier $injectionClassifier,
@@ -97,7 +99,9 @@ final readonly class RunCommandTool
 
         $decision = $this->approvals->answer($context, $command, $assessment->verdict);
         if (!$decision instanceof Decision) {
-            return $this->approvals->ask($context, $command, $this->approvalForm->request($command, $assessment, $this->grantRules->for($line)));
+            $plainWords = Verdict::AskEveryTime === $assessment->verdict ? $this->riskExplainer->explain($command) : null;
+
+            return $this->approvals->ask($context, $command, $this->approvalForm->request($command, $assessment, $this->grantRules->for($line), $plainWords));
         }
 
         return $this->decide($decision, $command, $line, $assessment);
