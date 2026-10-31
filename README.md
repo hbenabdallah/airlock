@@ -67,11 +67,19 @@ A given version rather than the latest:
 curl -fsSL https://raw.githubusercontent.com/hbenabdallah/airlock/main/install.sh | sh -s -- 0.1.0
 ```
 
-Or by hand: download `airlock-<platform>` and `SHA256SUMS` from the release, compare `shasum -a 256 airlock-<platform>`
-with its line, then `chmod +x` it. On Linux, install bubblewrap as [below](#natively-with-php-85); macOS has
-`sandbox-exec` built in.
+Or by hand: download `airlock-<platform>` and `SHA256SUMS` from the release, check that this prints the line
+`SHA256SUMS` has for it, then make it executable. On Linux, install bubblewrap as [below](#natively-with-php-85); macOS
+has `sandbox-exec` built in.
 
-**The server command:** `~/.local/bin/airlock mcp:server`
+```bash
+shasum -a 256 airlock-<platform> && chmod +x airlock-<platform>
+```
+
+The server command:
+
+```bash
+~/.local/bin/airlock mcp:server
+```
 
 #### Natively, with PHP 8.5
 
@@ -96,7 +104,11 @@ system-wide; put it in `/etc/sysctl.d/` to keep it after a reboot):
 sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 ```
 
-**The server command:** `php ~/airlock/bin/console mcp:server`
+The server command:
+
+```bash
+php ~/airlock/bin/console mcp:server
+```
 
 #### With Docker (no PHP needed)
 
@@ -111,7 +123,7 @@ mkdir -p ~/.config/airlock
 On an Ubuntu 23.10 or later host, also allow the user namespaces bubblewrap needs, [as above](#natively-with-php-85):
 the restriction reaches into containers.
 
-**The server command**, with your project's absolute path in place of `/path/to/project` (twice) and your home
+The server command, with your project's absolute path in place of `/path/to/project` (twice) and your home
 directory in place of `/home/you`:
 
 ```bash
@@ -153,12 +165,30 @@ Most clients take an `mcpServers` entry like this one (here, the binary):
 }
 ```
 
-| Client | Where it goes |
-|---|---|
-| Claude Code | From the project: `claude mcp add airlock -- ~/.local/bin/airlock mcp:server` (it starts servers in the project). |
-| Cursor | `.cursor/mcp.json` in the project, as above. |
-| VS Code | `.vscode/mcp.json` in the project: `{"servers": {"airlock": {"type": "stdio", "command": "/home/you/.local/bin/airlock", "args": ["mcp:server"], "env": {"AIRLOCK_PROJECT_DIR": "${workspaceFolder}"}}}}` |
-| Any other | Its MCP settings, with the same command, arguments and `AIRLOCK_PROJECT_DIR`. |
+**Claude Code**: from the project (it starts servers there, so `AIRLOCK_PROJECT_DIR` is not needed):
+
+```bash
+claude mcp add airlock -- ~/.local/bin/airlock mcp:server
+```
+
+**Cursor**: the `mcpServers` entry above, in `.cursor/mcp.json` in the project.
+
+**VS Code**: in `.vscode/mcp.json` in the project, where `${workspaceFolder}` stands for the project:
+
+```json
+{
+  "servers": {
+    "airlock": {
+      "type": "stdio",
+      "command": "/home/you/.local/bin/airlock",
+      "args": ["mcp:server"],
+      "env": { "AIRLOCK_PROJECT_DIR": "${workspaceFolder}" }
+    }
+  }
+}
+```
+
+**Any other client**: its MCP settings, with the same command, arguments and `AIRLOCK_PROJECT_DIR`.
 
 Tested end to end: Claude Code. The other entries follow each client's documented format and have not been run with
 Airlock yet: tell us how they behave.
