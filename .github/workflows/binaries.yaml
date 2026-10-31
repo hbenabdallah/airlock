@@ -90,11 +90,6 @@ jobs:
                   cat buildroot/bin/micro.sfx build/airlock.phar > "airlock-${{ matrix.target }}"
                   chmod +x "airlock-${{ matrix.target }}"
 
-            # Apple Silicon runs no unsigned code, and appending the PHAR voids the runtime's signature.
-            - name: Sign it ad hoc
-              if: runner.os == 'macOS'
-              run: codesign --force --sign - "airlock-${{ matrix.target }}"
-
             # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which bubblewrap needs.
             - name: Install bubblewrap
               if: runner.os == 'Linux'
