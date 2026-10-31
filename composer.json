@@ -1,6 +1,6 @@
 {
     "type": "project",
-    "license": "proprietary",
+    "license": ["MIT"],
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
@@ -94,5 +94,7 @@
             "allow-contrib": false,
             "require": "8.1.*"
         }
-    }
+    },
+    "name": "hbenabdallah/airlock",
+    "description": "An MCP server that lets any agent run commands in a sandbox, asking you first about the ones that matter"
 }

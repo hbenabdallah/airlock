@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "85e11c1901d00cb6b5820c9d5d667584",
+    "content-hash": "e939d507e4df9d6ce553147a5066d64e",
     "packages": [
         {
             "name": "doctrine/deprecations",
@@ -6024,7 +6024,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-28T22:38:53+00:00"
+            "time": "2026-10-28T22:38:53+00:00",
+            "published-time": "2026-10-28T22:39:06+00:00"
         },
         {
             "name": "phpstan/phpstan-phpunit",
