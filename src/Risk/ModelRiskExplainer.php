@@ -35,10 +35,10 @@ final readonly class ModelRiskExplainer implements RiskExplainer
         TEXT;
 
     public function __construct(
-        #[Target('generic_nvidia')]
+        #[Target('generic_models')]
         private PlatformInterface $platform,
         private LoggerInterface $logger,
-        #[Autowire(env: 'AIRLOCK_NVIDIA_API_KEY')]
+        #[Autowire(env: 'AIRLOCK_AI_API_KEY')]
         #[\SensitiveParameter]
         private string $apiKey,
         #[Autowire(env: 'AIRLOCK_RISK_MODEL')]

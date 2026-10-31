@@ -24,4 +24,5 @@ services:
 
 when@test:
     services:
-        App\Tests\Output\RecordedNvidiaApi: ~
+        App\Tests\Output\RecordedModelApi:
+            autowire: true

@@ -1,18 +1,18 @@
-# NVIDIA's API catalog speaks the OpenAI chat completions API: the generic platform calls it.
+# Any provider that speaks the OpenAI chat completions API with structured output: the generic platform calls it.
 ai:
     platform:
         generic:
-            nvidia:
-                base_url: 'https://integrate.api.nvidia.com'
-                api_key: '%env(AIRLOCK_NVIDIA_API_KEY)%'
-                http_client: 'nvidia.client'
+            models:
+                base_url: '%env(AIRLOCK_AI_BASE_URL)%'
+                api_key: '%env(AIRLOCK_AI_API_KEY)%'
+                http_client: 'models.client'
                 supports_embeddings: false
 
 # A model that does not answer in time is no answer: the command's result never waits long for it.
 framework:
     http_client:
         scoped_clients:
-            nvidia.client:
-                base_uri: 'https://integrate.api.nvidia.com'
-                timeout: '%env(float:AIRLOCK_MODEL_TIMEOUT)%'
-                max_duration: '%env(float:AIRLOCK_MODEL_TIMEOUT)%'
+            models.client:
+                base_uri: '%env(AIRLOCK_AI_BASE_URL)%'
+                timeout: '%env(float:AIRLOCK_AI_TIMEOUT)%'
+                max_duration: '%env(float:AIRLOCK_AI_TIMEOUT)%'

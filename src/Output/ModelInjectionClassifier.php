@@ -38,11 +38,11 @@ final readonly class ModelInjectionClassifier implements InjectionClassifier
         TEXT;
 
     public function __construct(
-        #[Target('generic_nvidia')]
+        #[Target('generic_models')]
         private PlatformInterface $platform,
         private OutputChunker $chunker,
         private LoggerInterface $logger,
-        #[Autowire(env: 'AIRLOCK_NVIDIA_API_KEY')]
+        #[Autowire(env: 'AIRLOCK_AI_API_KEY')]
         #[\SensitiveParameter]
         private string $apiKey,
         #[Autowire(env: 'AIRLOCK_OUTPUT_CHECK_MODEL')]
