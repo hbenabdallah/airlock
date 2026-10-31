@@ -1,7 +1,7 @@
 """Starts Airlock the way a client does, with the command given after --, and runs one command through it.
 
-The first call must return the form, sandboxed with bubblewrap; the retry with the signed state and "once" must run
-the command and return its output marked as data.
+The first call must return the form, sandboxed (bubblewrap or sandbox-exec); the retry with the signed state and "once" must run
+the command and return its output marked as data, saying --expect's text when given.
 """
 
 import json
@@ -26,17 +26,21 @@ def call(server, request_id, extra):
 
 
 def main():
-    server = subprocess.Popen(sys.argv[sys.argv.index("--") + 1:], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    separator = sys.argv.index("--")
+    options = sys.argv[1:separator]
+    expected = options[options.index("--expect") + 1] if "--expect" in options else None
+    server = subprocess.Popen(sys.argv[separator + 1:], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         asked = call(server, 1, {})
         assert asked.get("resultType") == "input_required", asked
         message = asked["inputRequests"]["approval"]["params"]["message"]
-        assert "Sandbox (bubblewrap)" in message, message
+        assert "Sandbox (bubblewrap)" in message or "Sandbox (sandbox-exec)" in message, message
 
         ran = call(server, 2, {"requestState": asked["requestState"], "inputResponses": {"approval": {"action": "accept", "content": {"decision": "once"}}}})
         text = ran["content"][0]["text"]
         assert not ran.get("isError"), text
         assert '<command-output exit-code="0">\nairlock-smoke\n</command-output>' in text, text
+        assert expected is None or expected in text, text
         print(text)
     finally:
         server.stdin.close()

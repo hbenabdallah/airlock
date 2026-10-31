@@ -16,8 +16,42 @@ How and why: [docs/design.md](docs/design.md).
 
 ## Quick start: five minutes
 
-You need [Claude Code](https://code.claude.com) and either Docker or PHP 8.5. Pick one of the two ways below, then
-[try the demo](#try-the-demo).
+You need [Claude Code](https://code.claude.com), and one of: nothing else (a binary, on macOS or Linux), Docker, or
+PHP 8.5. Pick one of the three ways below, then [try the demo](#try-the-demo).
+
+### With a binary (no PHP, no Docker)
+
+Each [release](https://github.com/hbenabdallah/airlock/releases) holds one executable per platform, PHP 8.5 included:
+`airlock-macos-aarch64` (Apple Silicon), `airlock-linux-x86_64` and `airlock-linux-aarch64`, with their `SHA256SUMS`.
+Pick yours:
+
+```bash
+TARGET=macos-aarch64
+```
+
+```bash
+mkdir -p ~/.local/bin && curl -fsSLo ~/.local/bin/airlock "https://github.com/hbenabdallah/airlock/releases/latest/download/airlock-$TARGET"
+```
+
+Check it against the release's checksums, then make it executable:
+
+```bash
+curl -fsSL https://github.com/hbenabdallah/airlock/releases/latest/download/SHA256SUMS | grep "airlock-$TARGET"
+```
+
+```bash
+shasum -a 256 ~/.local/bin/airlock && chmod +x ~/.local/bin/airlock
+```
+
+On Linux, install bubblewrap as [below](#natively-with-php-85) (macOS has `sandbox-exec` built in). Then, from the
+project you want Airlock to guard:
+
+```bash
+claude mcp add airlock -- ~/.local/bin/airlock mcp:server
+```
+
+The binary has no `.env.local`: set the [model checks](#optional-the-model-checks) as environment variables, exported
+in the shell you start Claude Code from.
 
 ### With Docker (no PHP needed)
 
@@ -110,7 +144,8 @@ AIRLOCK_RISK_MODEL=nvidia/nemotron-3.5-bolt-e4b
 ```
 
 - natively, put these lines in `~/airlock/.env.local` (git-ignored);
-- with Docker, export them in the shell you start Claude Code from (the `-e` options above pass them on).
+- with the binary or Docker, export them in the shell you start Claude Code from (with Docker, the `-e` options above
+  pass them on).
 
 Until the URL, the key and a model are set, that check is off and everything still runs: outputs say they were not
 checked, and the form shows only the rule. A model that does not support structured output, or answers anything but

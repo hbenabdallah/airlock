@@ -8,6 +8,10 @@ mcp:
                 stdio: true
                 http: false
 
+            # One process per client over stdio: a session never outlives it, and the code may run from a read-only PHAR.
+            session:
+                store: memory
+
             # Signs the state the form's answer carries back through the client.
             request_state:
                 key: '%env(process_key:default::AIRLOCK_STATE_KEY)%'

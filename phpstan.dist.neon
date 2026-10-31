@@ -8,6 +8,7 @@ includes:
 parameters:
     level: max
     paths:
+        - bin/build-phar.php
         - src
         - tests
     tmpDir: var/cache/phpstan
