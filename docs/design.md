@@ -65,9 +65,16 @@ through Symfony AI.
 
 Both calls go through `symfony/ai-platform` and its generic bridge to any API
 that speaks OpenAI's chat completions, with Symfony AI's structured output: the
-answer is a field, not prose to parse. The API, its key and the models are set
-in the environment, never in the code, and have no default. Airlock was tested
-with NVIDIA's API catalog, which has a free tier, and the two models below.
+answer is a field, not prose to parse. The API, its key and the models are
+never in the code and have no default. `airlock configure` sets them up in a
+terminal, so the key never passes through the agent (an MCP form must not
+carry secrets): it lists the API's models and calibrates them with the very
+classifier and explainer the server uses (flag a known injection, pass a
+harmless output, sum up `rm -rf build` in one line), then writes
+`models.yaml`, 0600, in the configuration directory no command can see. An
+`AIRLOCK_AI_*` environment variable, when set, wins over the file. Airlock was
+tested with NVIDIA's API catalog, which has a free tier, and the two models
+below.
 
 - **Output check.** `minimaxai/minimax-m3.1-flash` reads the output, between
   tags, and answers `clean` or `injection`. A long output is read in
