@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Configuration\Calibration;
+use App\Configuration\EffectiveModelSettings;
 use App\Configuration\InvalidModelSettingsException;
 use App\Configuration\ModelCalibrator;
 use App\Configuration\ModelList;
@@ -37,6 +38,7 @@ final class ConfigureCommand extends Command
         private readonly ModelList $modelList,
         private readonly ModelCalibrator $calibrator,
         private readonly ClockInterface $clock,
+        private readonly EffectiveModelSettings $effectiveSettings,
     ) {
         parent::__construct();
     }
@@ -45,7 +47,7 @@ final class ConfigureCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('check', null, InputOption::VALUE_NONE, 'Calibrate the models already configured, change nothing')
+            ->addOption('check', null, InputOption::VALUE_NONE, 'Calibrate the models the server uses (environment variables first, then models.yaml), change nothing')
             ->addOption('base-url', null, InputOption::VALUE_REQUIRED, 'The API, without /v1/chat/completions')
             ->addOption('output-check-model', null, InputOption::VALUE_REQUIRED, 'The model that checks outputs, instead of finding one')
             ->addOption('risk-model', null, InputOption::VALUE_REQUIRED, 'The model that writes the plain-words line, instead of finding one')
@@ -64,7 +66,7 @@ final class ConfigureCommand extends Command
         }
 
         if (true === $input->getOption('check')) {
-            return $this->check($io, $current);
+            return $this->check($io, $this->effectiveSettings->settings());
         }
 
         $baseUrl = $this->baseUrl($input, $io, $current);
@@ -128,7 +130,7 @@ final class ConfigureCommand extends Command
     private function check(SymfonyStyle $io, ModelSettings $settings): int
     {
         if ('' === $settings->baseUrl || '' === $settings->apiKey) {
-            $io->error(\sprintf('Nothing is configured in %s: run this command without --check.', $this->settingsFile->path()));
+            $io->error(\sprintf('No model API is configured, in %s or in AIRLOCK_AI_* environment variables: run this command without --check.', $this->settingsFile->path()));
 
             return Command::FAILURE;
         }

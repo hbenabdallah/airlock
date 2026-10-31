@@ -219,7 +219,8 @@ to `~/.config/airlock/models.yaml`, readable by you only and hidden from every c
 client afterwards.
 
 - `--output-check-model` and `--risk-model` name the models instead of finding them; `--base-url` skips that question.
-- `--check` calibrates the configured models again and changes nothing: run it when a model starts failing.
+- `--check` calibrates the models the server uses (environment variables first, then `models.yaml`) and changes
+  nothing: run it when a model starts failing.
 - `--max-probes` (default 15) bounds how many models that answer are calibrated; a listed model that gives no answer
   (many APIs list withdrawn ones) does not count.
 

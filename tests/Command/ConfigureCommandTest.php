@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Command;
 
 use App\Configuration\ConfigDirectory;
+use App\Configuration\ModelSetting;
 use App\Configuration\ModelSettings;
 use App\Configuration\ModelSettingsFile;
 use App\Tests\Output\RecordedModelApi;
@@ -24,19 +25,28 @@ final class ConfigureCommandTest extends KernelTestCase
 
     private ModelSettingsFile $file;
 
+    /** @var array<mixed> */
+    private array $server;
+
+    /** @var array<mixed> */
+    private array $environment;
+
     #[\Override]
     protected function setUp(): void
     {
         new Filesystem()->remove(self::CONFIG_HOME);
+        $this->server = $_SERVER;
+        $this->environment = $_ENV;
         $_SERVER['XDG_CONFIG_HOME'] = $_ENV['XDG_CONFIG_HOME'] = self::CONFIG_HOME;
         $this->file = new ModelSettingsFile(new ConfigDirectory('/nonexistent', self::CONFIG_HOME));
     }
 
     protected function tearDown(): void
     {
-        parent::tearDown();
-        unset($_SERVER['XDG_CONFIG_HOME'], $_ENV['XDG_CONFIG_HOME']);
+        $_SERVER = $this->server;
+        $_ENV = $this->environment;
         new Filesystem()->remove(self::CONFIG_HOME);
+        parent::tearDown();
     }
 
     public function testAModelFitForBothChecksIsFoundByCalibratingWhatTheApiLists(): void
@@ -115,6 +125,7 @@ final class ConfigureCommandTest extends KernelTestCase
     {
         $settings = new ModelSettings(RecordedResponses::BASE_URL, 'secret-key', RecordedModelApi::BLIND, 'test/risk');
         $this->file->write($settings);
+        $this->withoutModelEnvironmentVariables();
         $tester = $this->tester();
 
         $status = $tester->execute(['--check' => true]);
@@ -127,11 +138,23 @@ final class ConfigureCommandTest extends KernelTestCase
     {
         $clock = self::mockTime('2026-11-01 10:00:00');
         $this->file->write(new ModelSettings(RecordedResponses::BASE_URL, 'secret-key', RecordedModelApi::LIMITED, 'test/risk'));
+        $this->withoutModelEnvironmentVariables();
         $tester = $this->tester();
 
         $tester->execute(['--check' => true]);
 
         self::assertSame('2026-11-01 10:00:30', $clock->now()->format('Y-m-d H:i:s'));
+    }
+
+    public function testCheckCalibratesTheModelsTheEnvironmentSetsOverTheFile(): void
+    {
+        $this->file->write(new ModelSettings(RecordedResponses::BASE_URL, 'secret-key', RecordedModelApi::BLIND, 'test/risk'));
+        $tester = $this->tester();
+
+        $status = $tester->execute(['--check' => true]);
+
+        self::assertSame(Command::SUCCESS, $status, 'The test environment sets AIRLOCK_OUTPUT_CHECK_MODEL to a fit model, and it wins over the blind one in the file.');
+        self::assertStringContainsString('test/output-check  output check: passes', $tester->getDisplay());
     }
 
     public function testWithoutAKeyNothingIsSaved(): void
@@ -143,6 +166,13 @@ final class ConfigureCommandTest extends KernelTestCase
 
         self::assertSame(Command::FAILURE, $status);
         self::assertFileDoesNotExist($this->file->path());
+    }
+
+    private function withoutModelEnvironmentVariables(): void
+    {
+        foreach (ModelSetting::cases() as $setting) {
+            $_SERVER[$setting->environmentVariable()] = $_ENV[$setting->environmentVariable()] = '';
+        }
     }
 
     private function tester(): CommandTester
