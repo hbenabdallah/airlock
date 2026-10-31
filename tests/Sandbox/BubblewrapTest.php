@@ -266,6 +266,15 @@ final class BubblewrapTest extends TestCase
         self::assertSame(3, $this->runInSandbox('exit 3')->exitCode);
     }
 
+    public function testAnOutputFarPastTheLimitKeepsItsEndAndSaysHowMuchIsCut(): void
+    {
+        $result = $this->runInSandbox("head -c 1000000 /dev/zero | tr '\\0' x; echo; echo the end");
+
+        self::assertStringStartsWith(\sprintf("[the first %d bytes are cut]\n", 1000009 - 65536), $result->output);
+        self::assertStringEndsWith("x\nthe end\n", $result->output);
+        self::assertSame(65536, \strlen($result->output) - \strlen(\sprintf("[the first %d bytes are cut]\n", 1000009 - 65536)));
+    }
+
     public function testASecretTheCommandPrintsIsMasked(): void
     {
         $result = $this->runInSandbox('echo DB_PASSWORD=hunter2');
