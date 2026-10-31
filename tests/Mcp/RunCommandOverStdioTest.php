@@ -77,7 +77,7 @@ final class RunCommandOverStdioTest extends TestCase
         $form = $this->firstForm($this->client(), self::DANGEROUS);
 
         self::assertStringStartsWith(
-            "Asked every time: `rm -rf build`: it deletes recursively.\nIn plain words (from a model, may be wrong): Deletes the 'build' directory and all its contents forcefully.\n\nRun this command?",
+            "Asked every time: `rm -rf build`: it deletes recursively.\nIn plain words (from a model, may be wrong): deletes the build directory and all its contents\n\nRun this command?",
             $this->text($form, 'message'),
         );
     }

@@ -26,7 +26,7 @@ final class ModelRiskExplainerTest extends TestCase
     {
         $line = $this->explainer(new MockHttpClient([RecordedResponses::fixture('plain-words')]))->explain('rm -rf build');
 
-        self::assertSame("Deletes the 'build' directory and all its contents forcefully.", $line);
+        self::assertSame('deletes the build directory and all its contents', $line);
     }
 
     public function testTheModelReadsOnlyTheCommandBetweenTagsItCannotClose(): void
