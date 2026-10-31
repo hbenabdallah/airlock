@@ -1,7 +1,18 @@
-# Uncomment to call an API that is compatible with the one of OpenAI.
-# This is commented out because other platform bridges install this package too.
-#ai:
-#    platform:
-#        generic:
-#            default:
-#                base_url: '%env(GENERIC_BASE_URL)%'
+# NVIDIA's API catalog speaks the OpenAI chat completions API: the generic platform calls it.
+ai:
+    platform:
+        generic:
+            nvidia:
+                base_url: 'https://integrate.api.nvidia.com'
+                api_key: '%env(AIRLOCK_NVIDIA_API_KEY)%'
+                http_client: 'nvidia.client'
+                supports_embeddings: false
+
+# A model that does not answer in time is no answer: the command's result never waits long for it.
+framework:
+    http_client:
+        scoped_clients:
+            nvidia.client:
+                base_uri: 'https://integrate.api.nvidia.com'
+                timeout: '%env(float:AIRLOCK_MODEL_TIMEOUT)%'
+                max_duration: '%env(float:AIRLOCK_MODEL_TIMEOUT)%'
