@@ -15,7 +15,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
 final readonly class RecordedModelApi
 {
     public function __construct(
-        #[Autowire(env: 'AIRLOCK_AI_BASE_URL')]
+        #[Autowire(env: 'model_setting:AIRLOCK_AI_BASE_URL')]
         private string $baseUrl,
     ) {
     }

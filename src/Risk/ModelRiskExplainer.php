@@ -40,7 +40,7 @@ final readonly class ModelRiskExplainer implements RiskExplainer
         private PlatformInterface $platform,
         private LoggerInterface $logger,
         private ModelApi $modelApi,
-        #[Autowire(env: 'AIRLOCK_RISK_MODEL')]
+        #[Autowire(env: 'model_setting:AIRLOCK_RISK_MODEL')]
         private string $model,
     ) {
     }

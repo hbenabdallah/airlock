@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Mcp;
 
 use App\Configuration\ConfigDirectory;
+use App\Configuration\ModelSettings;
+use App\Configuration\ModelSettingsFile;
 use App\Mcp\OutputReport;
+use App\Tests\Output\RecordedResponses;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -310,6 +313,17 @@ final class RunCommandOverStdioTest extends TestCase
         self::assertStringContainsString("DB_PASSWORD=[masked: secret-assignment]\n", $this->text($answer, 'result', 'content', 0, 'text'));
         self::assertStringNotContainsString('hunter2', $this->text($answer, 'result', 'content', 0, 'text'));
         self::assertSame(1, $this->lastAuditEntry($client)['masked_secrets'] ?? null);
+    }
+
+    public function testWithoutEnvironmentVariablesTheServerReadsTheModelSettingsAirlockConfigureWrote(): void
+    {
+        $this->filesystem->dumpFile($this->project.'/README.md', self::INJECTED_README);
+        new ModelSettingsFile(new ConfigDirectory($this->home))->write(new ModelSettings(RecordedResponses::BASE_URL, 'test-key', 'test/output-check', 'test/risk'));
+        $client = $this->client(['AIRLOCK_AI_BASE_URL' => '', 'AIRLOCK_AI_API_KEY' => '', 'AIRLOCK_OUTPUT_CHECK_MODEL' => '', 'AIRLOCK_RISK_MODEL' => '']);
+
+        $answer = $client->request($this->modernCall(2, 'cat README.md', 'once', $this->askState($client, 'cat README.md')));
+
+        self::assertStringStartsWith(OutputReport::FLAGGED, $this->text($answer, 'result', 'content', 0, 'text'));
     }
 
     public function testInTheHandshakeEraAnInjectedOutputIsFlagged(): void

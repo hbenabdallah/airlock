@@ -44,7 +44,7 @@ final readonly class ModelInjectionClassifier implements InjectionClassifier
         private OutputChunker $chunker,
         private LoggerInterface $logger,
         private ModelApi $modelApi,
-        #[Autowire(env: 'AIRLOCK_OUTPUT_CHECK_MODEL')]
+        #[Autowire(env: 'model_setting:AIRLOCK_OUTPUT_CHECK_MODEL')]
         private string $model,
     ) {
     }
