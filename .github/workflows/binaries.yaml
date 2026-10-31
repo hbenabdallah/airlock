@@ -64,12 +64,17 @@ jobs:
                   name: airlock.phar
                   path: build
 
+            - name: Name the runtime by its PHP version and extensions
+              id: runtime-key
+              shell: bash
+              run: echo "key=micro-${{ matrix.target }}-php${{ env.PHP_VERSION }}-$(printf '%s' "$PHP_EXTENSIONS" | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
             - name: Restore the static PHP runtime
               id: runtime
               uses: actions/cache@v4
               with:
                   path: buildroot/bin/micro.sfx
-                  key: micro-${{ matrix.target }}-php${{ env.PHP_VERSION }}-${{ env.PHP_EXTENSIONS }}
+                  key: ${{ steps.runtime-key.outputs.key }}
 
             - name: Build the static PHP runtime
               if: steps.runtime.outputs.cache-hit != 'true'
