@@ -12,7 +12,7 @@ final readonly class NoSandbox implements Sandbox
     }
 
     #[\Override]
-    public function confine(array $command, string $projectDirectory): array
+    public function confine(array $command, string $projectDirectory, ?SshAgent $sshAgent = null): array
     {
         return $command;
     }

@@ -13,10 +13,11 @@ interface Sandbox
      * The command line that runs $command inside the sandbox, from $projectDirectory.
      *
      * @param non-empty-list<string> $command
+     * @param SshAgent|null          $sshAgent the agent this one command may use, or null for none
      *
      * @return non-empty-list<string>
      */
-    public function confine(array $command, string $projectDirectory): array;
+    public function confine(array $command, string $projectDirectory, ?SshAgent $sshAgent = null): array;
 
     /**
      * One line saying what a command can do in it, or why there is none.

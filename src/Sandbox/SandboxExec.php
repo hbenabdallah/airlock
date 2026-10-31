@@ -11,7 +11,9 @@ namespace App\Sandbox;
 final readonly class SandboxExec implements Sandbox
 {
     /** What macOS itself writes on behalf of any program. */
-    private const array SYSTEM_WRITABLE = ['/private/var/folders', '/dev'];
+    private const array SYSTEM_WRITABLE = ['/private/var/folders', '/private/tmp', '/dev'];
+
+    private const array AGENT_VARIABLES = ['SSH_AUTH_SOCK', 'SSH_AGENT_PID', 'GPG_AGENT_INFO'];
 
     public function __construct(
         private SandboxPaths $paths,
@@ -20,16 +22,24 @@ final readonly class SandboxExec implements Sandbox
     }
 
     #[\Override]
-    public function confine(array $command, string $projectDirectory): array
+    public function confine(array $command, string $projectDirectory, ?SshAgent $sshAgent = null): array
     {
-        return ['sandbox-exec', '-p', $this->profile($projectDirectory), ...$command];
+        $unset = [];
+        foreach (self::AGENT_VARIABLES as $variable) {
+            if (!$sshAgent instanceof SshAgent || 'SSH_AUTH_SOCK' !== $variable) {
+                $unset[] = '-u';
+                $unset[] = $variable;
+            }
+        }
+
+        return ['sandbox-exec', '-p', $this->profile($projectDirectory), 'env', ...$unset, ...$command];
     }
 
     #[\Override]
     public function describe(): string
     {
         return \sprintf(
-            'Sandbox (sandbox-exec): writes only to the project, /tmp and package caches; your keys are hidden%s.',
+            'Sandbox (sandbox-exec): writes only to the project, /tmp and package caches; your keys are out of reach%s.',
             $this->cutsNetwork ? '; no network' : '',
         );
     }
@@ -38,9 +48,13 @@ final readonly class SandboxExec implements Sandbox
     {
         $writable = array_map(
             fn (string $path): string => \sprintf('(subpath %s)', $this->quote($path)),
-            [...$this->paths->writable(), $projectDirectory, ...self::SYSTEM_WRITABLE],
+            [...$this->paths->writable(), ...$this->paths->private(), $projectDirectory, ...self::SYSTEM_WRITABLE],
         );
+        // Seatbelt applies the last rule that matches: the denials come after the allowances they narrow.
         $rules = ['(version 1)', '(allow default)', '(deny file-write*)', '(allow file-write* '.implode(' ', $writable).')'];
+        foreach ($this->paths->readOnlyInProject($projectDirectory) as $readOnly) {
+            $rules[] = \sprintf('(deny file-write* (subpath %s))', $this->quote($readOnly));
+        }
         foreach ($this->paths->hidden() as $hidden) {
             $rules[] = \sprintf('(deny file-read* (subpath %s))', $this->quote($hidden));
         }

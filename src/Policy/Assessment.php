@@ -10,11 +10,13 @@ namespace App\Policy;
 final readonly class Assessment
 {
     /**
-     * @param list<string> $reasons why it is not plain, one per concern, naming the part concerned
+     * @param list<string> $reasons       why it is not plain, one per concern, naming the part concerned
+     * @param bool         $needsSshAgent whether a part talks to another machine, so may need the user's SSH agent
      */
     public function __construct(
         public Verdict $verdict,
         public array $reasons = [],
+        public bool $needsSshAgent = false,
     ) {
     }
 }

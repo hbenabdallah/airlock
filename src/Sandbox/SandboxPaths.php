@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Sandbox;
 
+use App\Configuration\ConfigDirectory;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Where a confined command may write, and what it must not read.
+ * Where a confined command may write, what it gets a private copy of, and what it must not read or change.
  */
 final readonly class SandboxPaths
 {
@@ -27,13 +28,17 @@ final readonly class SandboxPaths
     /** Under Airlock's own directory, what holds its secrets. */
     private const array AIRLOCK_SECRETS = ['.env.local', '.env.*.local', 'config/secrets'];
 
+    /** Under the project, what git runs or obeys outside the sandbox, later, as the user. */
+    private const array GIT_CONTROLS = ['.git/hooks', '.git/config'];
+
     public function __construct(
         #[Autowire(env: 'HOME')]
         private string $home,
         #[Autowire(param: 'kernel.project_dir')]
         private string $airlockDirectory,
-        #[Autowire(env: 'default::XDG_CONFIG_HOME')]
-        private ?string $configHome = null,
+        private ConfigDirectory $configDirectory,
+        #[Autowire(env: 'default::XDG_RUNTIME_DIR')]
+        private ?string $runtimeDirectory = null,
     ) {
     }
 
@@ -44,9 +49,20 @@ final readonly class SandboxPaths
      */
     public function writable(): array
     {
+        return $this->existing(array_map(fn (string $cache): string => $this->home.'/'.$cache, self::CACHES));
+    }
+
+    /**
+     * Existing directories a command gets an empty, private copy of: the temporary directories, and the runtime
+     * directory, whose sockets (SSH and GPG agents, the keyring, the session bus) act with the user's credentials.
+     *
+     * @return list<string>
+     */
+    public function private(): array
+    {
         $candidates = ['/tmp', '/var/tmp', sys_get_temp_dir()];
-        foreach (self::CACHES as $cache) {
-            $candidates[] = $this->home.'/'.$cache;
+        if (null !== $this->runtimeDirectory && '' !== $this->runtimeDirectory) {
+            $candidates[] = $this->runtimeDirectory;
         }
 
         return $this->existing($candidates);
@@ -59,7 +75,7 @@ final readonly class SandboxPaths
      */
     public function hidden(): array
     {
-        $candidates = [$this->airlockConfigDirectory()];
+        $candidates = [$this->configDirectory->path];
         foreach (self::KEYS as $key) {
             $candidates[] = $this->home.'/'.$key;
         }
@@ -73,11 +89,14 @@ final readonly class SandboxPaths
         return $this->existing($candidates);
     }
 
-    private function airlockConfigDirectory(): string
+    /**
+     * Existing paths of the project a command may read but not change.
+     *
+     * @return list<string>
+     */
+    public function readOnlyInProject(string $projectDirectory): array
     {
-        $configHome = null === $this->configHome || '' === $this->configHome ? $this->home.'/.config' : $this->configHome;
-
-        return $configHome.'/airlock';
+        return $this->existing(array_map(static fn (string $control): string => $projectDirectory.'/'.$control, self::GIT_CONTROLS));
     }
 
     /**

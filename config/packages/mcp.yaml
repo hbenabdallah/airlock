@@ -7,3 +7,7 @@ mcp:
             transports:
                 stdio: true
                 http: false
+
+            # Signs the state the form's answer carries back through the client.
+            request_state:
+                key: '%env(process_key:default::AIRLOCK_STATE_KEY)%'

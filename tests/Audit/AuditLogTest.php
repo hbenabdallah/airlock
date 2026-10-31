@@ -1,0 +1,71 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Audit;
+
+use App\Audit\AuditEntry;
+use App\Audit\AuditLog;
+use App\Audit\Outcome;
+use App\Configuration\ConfigDirectory;
+use App\Policy\Verdict;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Lock\Store\InMemoryStore;
+
+final class AuditLogTest extends TestCase
+{
+    private const string HOME = __DIR__.'/../../var/test-audit';
+
+    private AuditLog $log;
+
+    #[\Override]
+    protected function setUp(): void
+    {
+        new Filesystem()->remove(self::HOME);
+        $this->log = new AuditLog(new ConfigDirectory(self::HOME), new LockFactory(new InMemoryStore()));
+    }
+
+    #[\Override]
+    protected function tearDown(): void
+    {
+        new Filesystem()->remove(self::HOME);
+    }
+
+    public function testAnEmptyLogHasNoEntries(): void
+    {
+        self::assertSame([], $this->log->lastEntriesFor('/project', 10));
+    }
+
+    public function testAnEntryIsWrittenAsOneJsonLine(): void
+    {
+        $this->log->append(new AuditEntry(new \DateTimeImmutable('2026-11-05T10:00:00+00:00'), '/project', 'rm -rf build', Verdict::AskEveryTime, Outcome::RefusedByUser, ['`rm -rf build`: it deletes recursively']));
+
+        self::assertSame(
+            ['{"at":"2026-11-05T10:00:00+00:00","project":"/project","command":"rm -rf build","verdict":"ask_every_time","outcome":"refused_by_user","reasons":["`rm -rf build`: it deletes recursively"],"exit_code":null,"timed_out":false,"detail":null}'],
+            $this->log->lastEntriesFor('/project', 10),
+        );
+    }
+
+    public function testOnlyTheEntriesOfTheProjectAreReadBackTheLastOnesOldestFirst(): void
+    {
+        foreach (['a', 'b', 'c'] as $command) {
+            $this->log->append($this->entry('/project', $command));
+            $this->log->append($this->entry('/other', $command));
+        }
+
+        $commands = array_map(static function (string $line): mixed {
+            $entry = json_decode($line, true);
+
+            return \is_array($entry) ? $entry['command'] ?? null : null;
+        }, $this->log->lastEntriesFor('/project', 2));
+
+        self::assertSame(['b', 'c'], $commands);
+    }
+
+    private function entry(string $project, string $command): AuditEntry
+    {
+        return new AuditEntry(new \DateTimeImmutable('2026-11-05T10:00:00+00:00'), $project, $command, Verdict::Plain, Outcome::RanOnce, exitCode: 0);
+    }
+}

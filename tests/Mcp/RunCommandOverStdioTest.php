@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Mcp;
 
+use App\Configuration\ConfigDirectory;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -16,133 +17,276 @@ use Symfony\Component\Filesystem\Filesystem;
 #[RequiresOperatingSystemFamily('Linux')]
 final class RunCommandOverStdioTest extends TestCase
 {
-    private const string PROJECT = __DIR__.'/../../var/test-stdio/project';
+    private const string ROOT = __DIR__.'/../../var/test-stdio';
 
-    private const string COMMAND = 'echo approved > made.txt && cat made.txt';
+    /** Appends a line on each run, so the number of runs can be counted. */
+    private const string COMMAND = 'echo ran >> runs.txt && cat runs.txt';
 
-    private ?StdioClient $client = null;
+    private const string DANGEROUS = 'rm -rf build';
+
+    private Filesystem $filesystem;
+
+    private string $project;
+
+    private string $home;
+
+    /** @var list<StdioClient> */
+    private array $clients = [];
 
     #[\Override]
     protected function setUp(): void
     {
-        $filesystem = new Filesystem();
-        $filesystem->remove(self::PROJECT);
-        $filesystem->mkdir(self::PROJECT);
+        $this->filesystem = new Filesystem();
+        $this->filesystem->remove(self::ROOT);
+        $this->filesystem->mkdir([self::ROOT.'/project/build', self::ROOT.'/home']);
+        $this->project = (string) realpath(self::ROOT.'/project');
+        $this->home = (string) realpath(self::ROOT.'/home');
     }
 
     #[\Override]
     protected function tearDown(): void
     {
-        $this->client?->stop();
-        new Filesystem()->remove(\dirname(self::PROJECT));
+        foreach ($this->clients as $client) {
+            $client->stop();
+        }
+        $this->filesystem->remove(self::ROOT);
     }
 
-    public function testInTheModernEraTheFirstCallAsksWithAForm(): void
+    public function testInTheModernEraAPlainCommandIsAskedWithEveryChoiceAndWhatAGrantWouldCover(): void
     {
-        $answer = $this->client()->request($this->modernCall(1, 'git push'));
+        $form = $this->firstForm($this->client(), self::COMMAND);
 
-        self::assertSame('input_required', $this->field($answer, 'result', 'resultType'));
-        self::assertSame('elicitation/create', $this->field($answer, 'result', 'inputRequests', 'approval', 'method'));
-        $form = $this->field($answer, 'result', 'inputRequests', 'approval', 'params');
-        self::assertStringContainsString('git push', $this->text($form, 'message'));
-        self::assertStringContainsString('it pushes to a remote', $this->text($form, 'message'));
+        self::assertSame(['once', 'session', 'always', 'refuse'], $this->field($form, 'requestedSchema', 'properties', 'decision', 'enum'));
+        self::assertStringStartsWith('Not covered by any grant yet.', $this->text($form, 'message'));
+        self::assertStringContainsString('`echo ran …`, `cat runs.txt …`', $this->text($form, 'message'));
+    }
+
+    public function testInTheModernEraADangerousCommandSaysWhyFirstAndCanOnlyBeAllowedOnce(): void
+    {
+        $form = $this->firstForm($this->client(), self::DANGEROUS);
+
         self::assertSame(['once', 'refuse'], $this->field($form, 'requestedSchema', 'properties', 'decision', 'enum'));
+        self::assertStringStartsWith('Asked every time: `rm -rf build`: it deletes recursively.', $this->text($form, 'message'));
     }
 
-    public function testInTheModernEraAnApprovedRetryRunsTheCommand(): void
+    public function testInTheModernEraAnApprovedRetryRunsTheCommandOnce(): void
     {
-        $this->client()->request($this->modernCall(1, self::COMMAND));
+        $client = $this->client();
+        $state = $this->askState($client, self::COMMAND);
 
-        $answer = $this->client()->request($this->modernCall(2, self::COMMAND, ['action' => 'accept', 'content' => ['decision' => 'once']]));
+        $answer = $client->request($this->modernCall(2, self::COMMAND, 'once', $state));
 
         self::assertFalse($this->field($answer, 'result', 'isError'));
-        self::assertSame("Exit code 0\n\napproved\n", $this->field($answer, 'result', 'content', 0, 'text'));
-        self::assertFileExists(self::PROJECT.'/made.txt');
+        self::assertSame("Exit code 0\n\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertSame('input_required', $this->field($client->request($this->modernCall(3, self::COMMAND)), 'result', 'resultType'), 'Once is not a grant.');
     }
 
     public function testInTheModernEraARefusedRetryRunsNothing(): void
     {
-        $this->client()->request($this->modernCall(1, self::COMMAND));
+        $client = $this->client();
+        $state = $this->askState($client, self::COMMAND);
 
-        $answer = $this->client()->request($this->modernCall(2, self::COMMAND, ['action' => 'accept', 'content' => ['decision' => 'refuse']]));
+        $answer = $client->request($this->modernCall(2, self::COMMAND, 'refuse', $state));
 
         self::assertTrue($this->field($answer, 'result', 'isError'));
         self::assertStringContainsString('Refused by the user', $this->text($answer, 'result', 'content', 0, 'text'));
-        self::assertFileDoesNotExist(self::PROJECT.'/made.txt');
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
     }
 
     public function testInTheModernEraADeclinedFormRunsNothing(): void
     {
-        $answer = $this->client()->request($this->modernCall(1, self::COMMAND, ['action' => 'decline']));
+        $client = $this->client();
+        $state = $this->askState($client, self::COMMAND);
+
+        $answer = $client->request($this->modernCall(2, self::COMMAND, null, $state, action: 'decline'));
 
         self::assertTrue($this->field($answer, 'result', 'isError'));
-        self::assertFileDoesNotExist(self::PROJECT.'/made.txt');
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
     }
 
-    public function testInTheModernEraAnApprovalDoesNotCarryOverToTheNextCall(): void
+    public function testInTheModernEraAnAnswerWithoutTheSignedStateIsNoApproval(): void
     {
-        $this->client()->request($this->modernCall(1, self::COMMAND, ['action' => 'accept', 'content' => ['decision' => 'once']]));
-
-        $answer = $this->client()->request($this->modernCall(2, 'touch other.txt'));
+        $answer = $this->client()->request($this->modernCall(1, self::COMMAND, 'once'));
 
         self::assertSame('input_required', $this->field($answer, 'result', 'resultType'));
-        self::assertFileDoesNotExist(self::PROJECT.'/other.txt');
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
+    }
+
+    public function testInTheModernEraATamperedStateIsRejected(): void
+    {
+        $client = $this->client();
+        $state = $this->askState($client, self::COMMAND);
+
+        $answer = $client->request($this->modernCall(2, self::COMMAND, 'once', $state.'x'));
+
+        self::assertSame(-32602, $this->field($answer, 'error', 'code'));
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
+    }
+
+    public function testInTheModernEraAnAnswerIsGoodForOneRunOnly(): void
+    {
+        $client = $this->client();
+        $state = $this->askState($client, self::COMMAND);
+        $client->request($this->modernCall(2, self::COMMAND, 'once', $state));
+
+        $replayed = $client->request($this->modernCall(3, self::COMMAND, 'once', $state));
+
+        self::assertSame('input_required', $this->field($replayed, 'result', 'resultType'));
+        self::assertSame("ran\n", $this->filesystem->readFile($this->project.'/runs.txt'));
+    }
+
+    public function testInTheModernEraAnAnswerForOneCommandDoesNotRunAnother(): void
+    {
+        $client = $this->client();
+        $state = $this->askState($client, 'make test');
+
+        $answer = $client->request($this->modernCall(2, self::COMMAND, 'once', $state));
+
+        self::assertSame('input_required', $this->field($answer, 'result', 'resultType'));
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
+    }
+
+    public function testInTheModernEraAGrantThatWasNotOfferedIsNoApproval(): void
+    {
+        $client = $this->client();
+        $state = $this->askState($client, self::DANGEROUS);
+
+        $answer = $client->request($this->modernCall(2, self::DANGEROUS, 'always', $state));
+
+        self::assertStringContainsString('Refused by the user', $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertDirectoryExists($this->project.'/build');
+    }
+
+    public function testASessionGrantLastsAsLongAsTheServer(): void
+    {
+        $client = $this->client();
+        $client->request($this->modernCall(2, self::COMMAND, 'session', $this->askState($client, self::COMMAND)));
+
+        $again = $client->request($this->modernCall(3, self::COMMAND));
+        $elsewhere = $this->client()->request($this->modernCall(1, self::COMMAND));
+
+        self::assertSame("Exit code 0\n\nran\nran\n", $this->text($again, 'result', 'content', 0, 'text'));
+        self::assertSame('input_required', $this->field($elsewhere, 'result', 'resultType'), 'Another server is another session.');
+    }
+
+    public function testAGrantForThisProjectOutlivesTheServer(): void
+    {
+        $client = $this->client();
+        $client->request($this->modernCall(2, self::COMMAND, 'always', $this->askState($client, self::COMMAND)));
+
+        $answer = $this->client()->request($this->modernCall(1, 'echo ran >> runs.txt && cat runs.txt --number'));
+
+        self::assertSame("Exit code 0\n\n     1\tran\n     2\tran\n", $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertFileExists(new ConfigDirectory($this->home)->forProject($this->project).'/grants.yaml');
+    }
+
+    public function testAGrantDoesNotCoverAChainedCommand(): void
+    {
+        $client = $this->client();
+        $client->request($this->modernCall(2, self::COMMAND, 'session', $this->askState($client, self::COMMAND)));
+
+        $answer = $client->request($this->modernCall(3, self::COMMAND.'; touch other.txt'));
+
+        self::assertSame('input_required', $this->field($answer, 'result', 'resultType'));
+        self::assertFileDoesNotExist($this->project.'/other.txt');
+    }
+
+    public function testACommandTheUsersPolicyRefusesIsRefusedWithoutAsking(): void
+    {
+        $this->filesystem->dumpFile(new ConfigDirectory($this->home)->path.'/policy.yaml', "refuse: ['terraform destroy']\n");
+
+        $answer = $this->client()->request($this->modernCall(1, 'make test && terraform destroy'));
+
+        self::assertStringContainsString("Refused by Airlock's policy", $this->text($answer, 'result', 'content', 0, 'text'));
+    }
+
+    public function testACommandTheCommittedPolicyRefusesIsRefusedWithoutAsking(): void
+    {
+        $this->filesystem->dumpFile($this->project.'/.airlock.yaml', "refuse: ['make deploy']\n");
+
+        $answer = $this->client()->request($this->modernCall(1, 'make deploy'));
+
+        self::assertStringContainsString('.airlock.yaml refuses `make deploy`', $this->text($answer, 'result', 'content', 0, 'text'));
+    }
+
+    public function testAnInvalidPolicyStopsEveryCommand(): void
+    {
+        $this->filesystem->dumpFile($this->project.'/.airlock.yaml', "grant: ['rm -rf *']\n");
+
+        $answer = $this->client()->request($this->modernCall(1, self::COMMAND));
+
+        self::assertStringContainsString('Nothing runs until this is fixed', $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
+    }
+
+    public function testTheAuditLogIsReadableAsAResource(): void
+    {
+        $client = $this->client();
+        $client->request($this->modernCall(2, self::COMMAND, 'once', $this->askState($client, self::COMMAND)));
+        $client->request($this->modernCall(4, self::DANGEROUS, 'refuse', $this->askState($client, self::DANGEROUS)));
+
+        $answer = $client->request(['jsonrpc' => '2.0', 'id' => 5, 'method' => 'resources/read', 'params' => ['uri' => 'airlock://audit', '_meta' => $this->modernMeta()]]);
+
+        $entries = array_map(static fn (string $line): mixed => json_decode($line, true), explode("\n", $this->text($answer, 'result', 'contents', 0, 'text')));
+        self::assertSame([self::COMMAND, self::DANGEROUS], array_column($entries, 'command'));
+        self::assertSame(['ran_once', 'refused_by_user'], array_column($entries, 'outcome'));
     }
 
     public function testInTheHandshakeEraTheServerAsksThroughElicitationAndRunsWhenApproved(): void
     {
-        $this->initializeHandshake();
+        $client = $this->handshakeClient();
 
-        $ask = $this->client()->request($this->handshakeCall(2, self::COMMAND));
+        $ask = $client->request($this->handshakeCall(2, self::COMMAND));
         self::assertSame('elicitation/create', $this->field($ask, 'method'));
         self::assertStringContainsString(self::COMMAND, $this->text($ask, 'params', 'message'));
 
-        $answer = $this->client()->request(['jsonrpc' => '2.0', 'id' => $this->field($ask, 'id'), 'result' => ['action' => 'accept', 'content' => ['decision' => 'once']]]);
+        $answer = $client->request($this->elicitationAnswer($ask, 'once'));
 
         self::assertSame(2, $this->field($answer, 'id'));
-        self::assertSame("Exit code 0\n\napproved\n", $this->field($answer, 'result', 'content', 0, 'text'));
-        self::assertFileExists(self::PROJECT.'/made.txt');
+        self::assertSame("Exit code 0\n\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
     }
 
     public function testInTheHandshakeEraARefusedAnswerRunsNothing(): void
     {
-        $this->initializeHandshake();
+        $client = $this->handshakeClient();
 
-        $ask = $this->client()->request($this->handshakeCall(2, self::COMMAND));
-        $answer = $this->client()->request(['jsonrpc' => '2.0', 'id' => $this->field($ask, 'id'), 'result' => ['action' => 'accept', 'content' => ['decision' => 'refuse']]]);
+        $ask = $client->request($this->handshakeCall(2, self::COMMAND));
+        $answer = $client->request($this->elicitationAnswer($ask, 'refuse'));
 
-        self::assertTrue($this->field($answer, 'result', 'isError'));
         self::assertStringContainsString('Refused by the user', $this->text($answer, 'result', 'content', 0, 'text'));
-        self::assertFileDoesNotExist(self::PROJECT.'/made.txt');
+        self::assertFileDoesNotExist($this->project.'/runs.txt');
+    }
+
+    public function testInTheHandshakeEraASessionGrantRunsTheNextCallWithoutAsking(): void
+    {
+        $client = $this->handshakeClient();
+        $client->request($this->elicitationAnswer($client->request($this->handshakeCall(2, self::COMMAND)), 'session'));
+
+        $answer = $client->request($this->handshakeCall(3, self::COMMAND));
+
+        self::assertSame(3, $this->field($answer, 'id'));
+        self::assertSame("Exit code 0\n\nran\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
     }
 
     public function testInTheHandshakeEraTheToolIsListed(): void
     {
-        $this->initializeHandshake();
-
-        $answer = $this->client()->request(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']);
+        $answer = $this->handshakeClient()->request(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']);
 
         self::assertSame('run_command', $this->field($answer, 'result', 'tools', 0, 'name'));
     }
 
-    public function testACommandThePolicyRefusesIsRefusedWithoutAsking(): void
-    {
-        $this->client = new StdioClient(self::PROJECT, ['AIRLOCK_REFUSE' => '["terraform destroy"]']);
-
-        $answer = $this->client->request($this->modernCall(1, 'make test && terraform destroy'));
-
-        self::assertTrue($this->field($answer, 'result', 'isError'));
-        self::assertStringContainsString("Refused by Airlock's policy", $this->text($answer, 'result', 'content', 0, 'text'));
-    }
-
     private function client(): StdioClient
     {
-        return $this->client ??= new StdioClient(self::PROJECT);
+        $client = new StdioClient($this->project, ['HOME' => $this->home, 'XDG_CONFIG_HOME' => '']);
+        $this->clients[] = $client;
+
+        return $client;
     }
 
-    private function initializeHandshake(): void
+    private function handshakeClient(): StdioClient
     {
-        $answer = $this->client()->request([
+        $client = $this->client();
+        $answer = $client->request([
             'jsonrpc' => '2.0',
             'id' => 1,
             'method' => 'initialize',
@@ -153,7 +297,22 @@ final class RunCommandOverStdioTest extends TestCase
             ],
         ]);
         self::assertSame('2025-11-25', $this->field($answer, 'result', 'protocolVersion'));
-        $this->client()->send(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']);
+        $client->send(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']);
+
+        return $client;
+    }
+
+    private function firstForm(StdioClient $client, string $command): mixed
+    {
+        $answer = $client->request($this->modernCall(1, $command));
+        self::assertSame('input_required', $this->field($answer, 'result', 'resultType'));
+
+        return $this->field($answer, 'result', 'inputRequests', 'approval', 'params');
+    }
+
+    private function askState(StdioClient $client, string $command): string
+    {
+        return $this->text($client->request($this->modernCall(1, $command)), 'result', 'requestState');
     }
 
     /**
@@ -165,25 +324,40 @@ final class RunCommandOverStdioTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed>|null $approval the answer to the form, carried by a retry
+     * @return array<string, mixed>
+     */
+    private function elicitationAnswer(mixed $ask, string $decision): array
+    {
+        return ['jsonrpc' => '2.0', 'id' => $this->field($ask, 'id'), 'result' => ['action' => 'accept', 'content' => ['decision' => $decision]]];
+    }
+
+    /**
+     * @param string|null $decision the answer to the form, carried by a retry with the state it came with
      *
      * @return array<string, mixed>
      */
-    private function modernCall(int $id, string $command, ?array $approval = null): array
+    private function modernCall(int $id, string $command, ?string $decision = null, ?string $state = null, string $action = 'accept'): array
     {
-        $params = [
-            'name' => 'run_command',
-            'arguments' => ['command' => $command],
-            '_meta' => [
-                'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
-                'io.modelcontextprotocol/clientCapabilities' => ['elicitation' => ['form' => new \stdClass()]],
-            ],
-        ];
-        if (null !== $approval) {
-            $params['inputResponses'] = ['approval' => $approval];
+        $params = ['name' => 'run_command', 'arguments' => ['command' => $command], '_meta' => $this->modernMeta()];
+        if (null !== $decision || 'accept' !== $action) {
+            $params['inputResponses'] = ['approval' => 'accept' === $action ? ['action' => 'accept', 'content' => ['decision' => $decision]] : ['action' => $action]];
+        }
+        if (null !== $state) {
+            $params['requestState'] = $state;
         }
 
         return ['jsonrpc' => '2.0', 'id' => $id, 'method' => 'tools/call', 'params' => $params];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function modernMeta(): array
+    {
+        return [
+            'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
+            'io.modelcontextprotocol/clientCapabilities' => ['elicitation' => ['form' => new \stdClass()]],
+        ];
     }
 
     /**
