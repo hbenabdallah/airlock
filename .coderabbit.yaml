@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit's reviews of this repository. AGENTS.md holds the coding rules it checks against.
+language: en-US
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - "!composer.lock"
+    - "!symfony.lock"
+    - "!config/reference.php"
+    - "!config/bundles.php"
+    - "!tests/Fixtures/**"
+    - "!docs/brand/**"
+    # demo/README.md holds a deliberate prompt injection aimed at AI agents: it is test data, never reviewed.
+    - "!demo/**"
+  path_instructions:
+    - path: "src/{Shell,Policy,Grant,Sandbox}/**/*.php"
+      instructions: >-
+        Security boundary. Look first for a command line that bash would read differently from Airlock's parser
+        (quoting, expansions, wrappers, aliases), a dangerous command that would end up plain or covered by a grant,
+        and a path a sandboxed command could write, read or plant that it must not. Each fix needs a test that fails
+        without it.
+    - path: "src/{Output,Risk}/**/*.php"
+      instructions: >-
+        Model output and command output are untrusted. Check that secrets are masked before anything is shown, that
+        output stays inside tags it cannot close, that a model's answer never changes a verdict, and that every model
+        failure ends in "not checked" without blocking the command.
+    - path: "src/Mcp/**/*.php"
+      instructions: >-
+        The signed request state comes back from the client and is attacker-controlled: an answer must only ever
+        apply to the exact command it was minted for, once.
+    - path: "tests/**/*.php"
+      instructions: >-
+        Tests never reach the network: model calls go through recorded responses. Follow AGENTS.md: final test
+        classes, sentence names, given/when/then, data providers, assertSame.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Least privilege: permissions declared per workflow, no secret printed, no untrusted input interpolated into
+        a run step.
+    - path: "install.sh"
+      instructions: >-
+        POSIX sh, runs piped into sh on machines we do not know: it must verify the checksum before installing and
+        fail closed.
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - AGENTS.md
+
+chat:
+  auto_reply: true
