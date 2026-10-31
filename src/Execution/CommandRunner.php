@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Execution;
 
 use App\Sandbox\SandboxDetector;
+use App\Sandbox\SshAgent;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
@@ -22,14 +23,31 @@ final readonly class CommandRunner
         private ProjectDirectory $projectDirectory,
         #[Autowire(env: 'int:AIRLOCK_TIMEOUT')]
         private int $timeoutSeconds,
+        #[Autowire(env: 'default::SSH_AUTH_SOCK')]
+        private ?string $sshAgentSocket = null,
     ) {
     }
 
     public function run(string $commandLine): CommandResult
     {
+        return $this->runConfined($commandLine, null);
+    }
+
+    /**
+     * Runs it with the user's SSH agent lent, when there is one: for a command the user has just approved.
+     */
+    public function runWithSshAgent(string $commandLine): CommandResult
+    {
+        $hasAgent = null !== $this->sshAgentSocket && '' !== $this->sshAgentSocket && file_exists($this->sshAgentSocket);
+
+        return $this->runConfined($commandLine, $hasAgent ? new SshAgent($this->sshAgentSocket) : null);
+    }
+
+    private function runConfined(string $commandLine, ?SshAgent $sshAgent): CommandResult
+    {
         $project = $this->projectDirectory->path;
         $process = new Process(
-            $this->sandboxDetector->detect()->confine(['bash', '-c', $commandLine], $project),
+            $this->sandboxDetector->detect()->confine(['bash', '-c', $commandLine], $project, $sshAgent),
             cwd: $project,
             env: $this->withoutAirlockEnvironment(),
             timeout: $this->timeoutSeconds,

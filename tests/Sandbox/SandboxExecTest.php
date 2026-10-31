@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Sandbox;
 
+use App\Configuration\ConfigDirectory;
 use App\Sandbox\SandboxExec;
 use App\Sandbox\SandboxPaths;
+use App\Sandbox\SshAgent;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -30,10 +32,10 @@ final class SandboxExecTest extends TestCase
 
     public function testTheProfileDeniesWritesButToTheProjectAndHidesTheKeys(): void
     {
-        $command = new SandboxExec(new SandboxPaths(self::HOME, '/nonexistent'), cutsNetwork: false)->confine(['bash', '-c', 'ls'], '/Users/me/project');
+        $command = new SandboxExec(new SandboxPaths(self::HOME, '/nonexistent', new ConfigDirectory(self::HOME)), cutsNetwork: false)->confine(['bash', '-c', 'ls'], '/Users/me/project');
 
         self::assertSame(['sandbox-exec', '-p'], \array_slice($command, 0, 2));
-        self::assertSame(['bash', '-c', 'ls'], \array_slice($command, 3));
+        self::assertSame(['env', '-u', 'SSH_AUTH_SOCK', '-u', 'SSH_AGENT_PID', '-u', 'GPG_AGENT_INFO', 'bash', '-c', 'ls'], \array_slice($command, 3));
         self::assertStringContainsString('(deny file-write*)', $command[2]);
         self::assertStringContainsString('(subpath "/Users/me/project")', $command[2]);
         self::assertStringContainsString(\sprintf('(deny file-read* (subpath "%s/.ssh"))', realpath(self::HOME)), $command[2]);
@@ -42,8 +44,15 @@ final class SandboxExecTest extends TestCase
 
     public function testStrictCutsTheNetwork(): void
     {
-        $command = new SandboxExec(new SandboxPaths(self::HOME, '/nonexistent'), cutsNetwork: true)->confine(['true'], '/p');
+        $command = new SandboxExec(new SandboxPaths(self::HOME, '/nonexistent', new ConfigDirectory(self::HOME)), cutsNetwork: true)->confine(['true'], '/p');
 
         self::assertStringContainsString('(deny network*)', $command[2]);
+    }
+
+    public function testALentSshAgentKeepsItsVariable(): void
+    {
+        $command = new SandboxExec(new SandboxPaths(self::HOME, '/nonexistent', new ConfigDirectory(self::HOME)), cutsNetwork: false)->confine(['true'], '/p', new SshAgent('/private/tmp/agent.sock'));
+
+        self::assertSame(['env', '-u', 'SSH_AGENT_PID', '-u', 'GPG_AGENT_INFO', 'true'], \array_slice($command, 3));
     }
 }

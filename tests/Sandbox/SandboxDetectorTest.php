@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Sandbox;
 
+use App\Configuration\ConfigDirectory;
 use App\Sandbox\NoSandbox;
 use App\Sandbox\Sandbox;
 use App\Sandbox\SandboxDetector;
@@ -33,7 +34,7 @@ final class SandboxDetectorTest extends TestCase
 
     public function testWithoutBubblewrapInstalledThereIsNoneAndItSaysHowToGetOne(): void
     {
-        $sandbox = new SandboxDetector(new SandboxPaths('/nonexistent', '/nonexistent'), SandboxMode::Auto, new NoExecutables(), 'Linux')->detect();
+        $sandbox = new SandboxDetector(new SandboxPaths('/nonexistent', '/nonexistent', new ConfigDirectory('/nonexistent')), SandboxMode::Auto, new NoExecutables(), 'Linux')->detect();
 
         self::assertInstanceOf(NoSandbox::class, $sandbox);
         self::assertStringContainsString('bubblewrap is not installed', $sandbox->describe());
@@ -41,6 +42,6 @@ final class SandboxDetectorTest extends TestCase
 
     private function detect(SandboxMode $mode, string $operatingSystemFamily): Sandbox
     {
-        return new SandboxDetector(new SandboxPaths('/nonexistent', '/nonexistent'), $mode, new ExecutableFinder(), $operatingSystemFamily)->detect();
+        return new SandboxDetector(new SandboxPaths('/nonexistent', '/nonexistent', new ConfigDirectory('/nonexistent')), $mode, new ExecutableFinder(), $operatingSystemFamily)->detect();
     }
 }

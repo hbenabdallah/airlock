@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace App\Sandbox;
 
 /**
- * Linux: the whole system mounted read-only, the writable paths bound back writable, and what must stay unread
- * covered by an empty, read-only mount.
+ * Linux: the whole system mounted read-only, the writable paths bound back writable, private temporary directories,
+ * and what must stay unread covered by an empty, read-only mount.
  */
 final readonly class Bubblewrap implements Sandbox
 {
+    /** Where a lent SSH agent appears inside: in the private /tmp, so it exists for this command only. */
+    private const string SSH_AGENT_SOCKET = '/tmp/airlock-ssh-agent.sock';
+
+    /** Variables that point a command at an agent acting with the user's credentials. */
+    private const array AGENT_VARIABLES = ['SSH_AUTH_SOCK', 'SSH_AGENT_PID', 'GPG_AGENT_INFO', 'DBUS_SESSION_BUS_ADDRESS'];
+
     public function __construct(
         private SandboxPaths $paths,
         private bool $cutsNetwork,
@@ -18,16 +24,37 @@ final readonly class Bubblewrap implements Sandbox
     }
 
     #[\Override]
-    public function confine(array $command, string $projectDirectory): array
+    public function confine(array $command, string $projectDirectory, ?SshAgent $sshAgent = null): array
     {
         $arguments = [$this->executable, '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc'];
+        foreach ($this->paths->private() as $private) {
+            $arguments[] = '--tmpfs';
+            $arguments[] = $private;
+        }
         foreach ([...$this->paths->writable(), $projectDirectory] as $writable) {
             $arguments[] = '--bind';
             $arguments[] = $writable;
             $arguments[] = $writable;
         }
+        foreach ($this->paths->readOnlyInProject($projectDirectory) as $readOnly) {
+            $arguments[] = '--ro-bind';
+            $arguments[] = $readOnly;
+            $arguments[] = $readOnly;
+        }
         foreach ($this->paths->hidden() as $hidden) {
             array_push($arguments, ...$this->hide($hidden));
+        }
+        foreach (self::AGENT_VARIABLES as $variable) {
+            $arguments[] = '--unsetenv';
+            $arguments[] = $variable;
+        }
+        if ($sshAgent instanceof SshAgent) {
+            $arguments[] = '--bind';
+            $arguments[] = $sshAgent->socket;
+            $arguments[] = self::SSH_AGENT_SOCKET;
+            $arguments[] = '--setenv';
+            $arguments[] = 'SSH_AUTH_SOCK';
+            $arguments[] = self::SSH_AGENT_SOCKET;
         }
         if ($this->cutsNetwork) {
             $arguments[] = '--unshare-net';
@@ -42,7 +69,7 @@ final readonly class Bubblewrap implements Sandbox
     public function describe(): string
     {
         return \sprintf(
-            'Sandbox (bubblewrap): writes only to the project, /tmp and package caches; your keys are hidden%s.',
+            'Sandbox (bubblewrap): writes only to the project and package caches, with a private /tmp; your keys and agents are out of reach%s.',
             $this->cutsNetwork ? '; no network' : '',
         );
     }
