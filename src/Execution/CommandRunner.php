@@ -1,0 +1,84 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Execution;
+
+use App\Sandbox\SandboxDetector;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
+
+/**
+ * Runs a command line with bash, in the sandbox, from the project, within a time limit.
+ */
+final readonly class CommandRunner
+{
+    /** What the agent gets back at most: the end of the output, where the result and the errors are. */
+    private const int MAX_OUTPUT_BYTES = 64 * 1024;
+
+    public function __construct(
+        private SandboxDetector $sandboxDetector,
+        private ProjectDirectory $projectDirectory,
+        #[Autowire(env: 'int:AIRLOCK_TIMEOUT')]
+        private int $timeoutSeconds,
+    ) {
+    }
+
+    public function run(string $commandLine): CommandResult
+    {
+        $project = $this->projectDirectory->path;
+        $process = new Process(
+            $this->sandboxDetector->detect()->confine(['bash', '-c', $commandLine], $project),
+            cwd: $project,
+            env: $this->withoutAirlockEnvironment(),
+            timeout: $this->timeoutSeconds,
+        );
+
+        $output = '';
+        try {
+            $process->run(static function (string $type, string $chunk) use (&$output): void {
+                $output .= $chunk;
+            });
+        } catch (ProcessTimedOutException) {
+            return new CommandResult(null, $this->tail($output), hasTimedOut: true);
+        }
+
+        return new CommandResult($process->getExitCode(), $this->tail($output));
+    }
+
+    /**
+     * Unsets what Airlock's own configuration added to its environment (APP_SECRET, AIRLOCK_*): the command gets the
+     * environment the client started Airlock with, not Airlock's.
+     *
+     * @return array<string, false>
+     */
+    private function withoutAirlockEnvironment(): array
+    {
+        $inherited = getenv();
+        $unset = [];
+        foreach (array_keys($_ENV) as $name) {
+            if (!\array_key_exists($name, $inherited)) {
+                $unset[(string) $name] = false;
+            }
+        }
+        foreach (array_keys($inherited) as $name) {
+            if (str_starts_with($name, 'AIRLOCK_') || str_starts_with($name, 'SYMFONY_DOTENV_')) {
+                $unset[$name] = false;
+            }
+        }
+
+        return $unset;
+    }
+
+    private function tail(string $output): string
+    {
+        $length = \strlen($output);
+        if ($length <= self::MAX_OUTPUT_BYTES) {
+            return $output;
+        }
+
+        return \sprintf("[the first %d bytes are cut]\n", $length - self::MAX_OUTPUT_BYTES)
+            .mb_strcut($output, $length - self::MAX_OUTPUT_BYTES);
+    }
+}

@@ -1,0 +1,9 @@
+mcp:
+    servers:
+        default:
+            registry: 'App\Mcp\'
+
+            # Clients start Airlock as a process; a tool that runs commands has no business on an HTTP endpoint.
+            transports:
+                stdio: true
+                http: false
