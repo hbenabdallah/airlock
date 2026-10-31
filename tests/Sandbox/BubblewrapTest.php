@@ -141,6 +141,24 @@ final class BubblewrapTest extends TestCase
         self::assertFileDoesNotExist($this->root.'/project/.git/hooks/pre-commit');
     }
 
+    public function testAGitHookCannotBePlantedWhenTheHooksDirectoryIsMissing(): void
+    {
+        $this->filesystem->remove($this->root.'/project/.git/hooks');
+
+        $this->runInSandbox('mkdir -p .git/hooks && echo "rm -rf ~" > .git/hooks/pre-commit');
+
+        self::assertFileDoesNotExist($this->root.'/project/.git/hooks/pre-commit');
+    }
+
+    public function testAGitConfigurationCannotBePlantedWhenItIsMissing(): void
+    {
+        $this->filesystem->remove($this->root.'/project/.git/config');
+
+        $this->runInSandbox('printf "[core]\n\thooksPath = /tmp/evil\n" > .git/config');
+
+        self::assertSame('', $this->filesystem->readFile($this->root.'/project/.git/config'));
+    }
+
     public function testTheGitConfigurationCannotBeChanged(): void
     {
         $this->runInSandbox('echo "[core] hooksPath = /tmp/hooks" >> .git/config');
@@ -160,6 +178,18 @@ final class BubblewrapTest extends TestCase
         $result = $this->runInSandbox(\sprintf('cat %s/home/.ssh/id_ed25519; echo end', $this->root));
 
         self::assertStringNotContainsString('PRIVATE-KEY-VALUE', $result->output);
+        self::assertStringContainsString('end', $result->output);
+    }
+
+    public function testTheUsersRegistryTokensCannotBeRead(): void
+    {
+        $this->filesystem->dumpFile($this->root.'/home/.npmrc', 'NPM-TOKEN-VALUE');
+        $this->filesystem->dumpFile($this->root.'/home/.config/composer/auth.json', 'COMPOSER-TOKEN-VALUE');
+
+        $result = $this->runInSandbox(\sprintf('cat %1$s/home/.npmrc %1$s/home/.config/composer/auth.json; echo end', $this->root));
+
+        self::assertStringNotContainsString('NPM-TOKEN-VALUE', $result->output);
+        self::assertStringNotContainsString('COMPOSER-TOKEN-VALUE', $result->output);
         self::assertStringContainsString('end', $result->output);
     }
 
@@ -234,6 +264,15 @@ final class BubblewrapTest extends TestCase
     public function testTheExitCodeIsKept(): void
     {
         self::assertSame(3, $this->runInSandbox('exit 3')->exitCode);
+    }
+
+    public function testAnOutputFarPastTheLimitKeepsItsEndAndSaysHowMuchIsCut(): void
+    {
+        $result = $this->runInSandbox("head -c 1000000 /dev/zero | tr '\\0' x; echo; echo the end");
+
+        self::assertStringStartsWith(\sprintf("[the first %d bytes are cut]\n", 1000009 - 65536), $result->output);
+        self::assertStringEndsWith("x\nthe end\n", $result->output);
+        self::assertSame(65536, \strlen($result->output) - \strlen(\sprintf("[the first %d bytes are cut]\n", 1000009 - 65536)));
     }
 
     public function testASecretTheCommandPrintsIsMasked(): void

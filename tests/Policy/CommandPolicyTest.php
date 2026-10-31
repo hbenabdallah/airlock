@@ -120,6 +120,8 @@ final class CommandPolicyTest extends TestCase
         yield 'a loop' => ['for f in *; do rm $f; done', 'it is a loop or a condition'];
         yield 'a program named by a variable' => ['X=rm; $X -rf ~', 'the program it runs is computed at run time'];
         yield 'a program named by a glob' => ['/???/r? -rf ~', 'the program it runs is computed at run time'];
+        yield 'a program in ANSI-C quotes' => ["\$'rm' -rf ~", 'the program it runs is computed at run time'];
+        yield 'a program spelled by a brace expansion' => ['{rm,-rf,~}', 'the program it runs is computed at run time'];
     }
 
     public function testEachConcernNamesThePartOfTheLineItComesFrom(): void

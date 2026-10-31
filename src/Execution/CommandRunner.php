@@ -56,10 +56,10 @@ final readonly class CommandRunner
             timeout: $this->timeoutSeconds,
         );
 
-        $output = '';
+        $output = new OutputTail(2 * self::MAX_OUTPUT_BYTES);
         try {
-            $process->run(static function (string $type, string $chunk) use (&$output): void {
-                $output .= $chunk;
+            $process->run(static function (string $type, string $chunk) use ($output): void {
+                $output->append($chunk);
             });
         } catch (ProcessTimedOutException) {
             return $this->result(null, $output, hasTimedOut: true);
@@ -68,11 +68,11 @@ final readonly class CommandRunner
         return $this->result($process->getExitCode(), $output);
     }
 
-    private function result(?int $exitCode, string $output, bool $hasTimedOut = false): CommandResult
+    private function result(?int $exitCode, OutputTail $output, bool $hasTimedOut = false): CommandResult
     {
-        $masked = $this->secretMasker->mask($output);
+        $masked = $this->secretMasker->mask($output->text());
 
-        return new CommandResult($exitCode, $this->tail($masked->text), $hasTimedOut, $masked->maskedSecrets);
+        return new CommandResult($exitCode, $this->tail($masked->text, $output->droppedBytes()), $hasTimedOut, $masked->maskedSecrets);
     }
 
     /**
@@ -99,14 +99,14 @@ final readonly class CommandRunner
         return $unset;
     }
 
-    private function tail(string $output): string
+    private function tail(string $output, int $droppedBytes): string
     {
         $length = \strlen($output);
-        if ($length <= self::MAX_OUTPUT_BYTES) {
+        if ($length <= self::MAX_OUTPUT_BYTES && 0 === $droppedBytes) {
             return $output;
         }
+        $start = max(0, $length - self::MAX_OUTPUT_BYTES);
 
-        return \sprintf("[the first %d bytes are cut]\n", $length - self::MAX_OUTPUT_BYTES)
-            .mb_strcut($output, $length - self::MAX_OUTPUT_BYTES);
+        return \sprintf("[the first %d bytes are cut]\n", $droppedBytes + $start).mb_strcut($output, $start);
     }
 }

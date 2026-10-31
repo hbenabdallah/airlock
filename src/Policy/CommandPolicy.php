@@ -46,6 +46,7 @@ final readonly class CommandPolicy
     /**
      * @param list<RefusedCommand> $refusals
      */
+    #[\NoDiscard('a line is run or asked about by its assessment')]
     public function assess(CommandLine $line, array $refusals = []): Assessment
     {
         $verdict = Verdict::Plain;
