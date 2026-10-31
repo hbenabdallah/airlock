@@ -36,9 +36,9 @@ allowed to read back.
    read Airlock's own files or the user's keys; with `strict`, it has no network.
    Where no sandbox can run, Airlock says so, and asks about every command.
 5. **Checked.** Its output goes back to the agent marked as data, not
-   instructions, with API keys masked. A classifier reads it first: output that
-   looks like an injection is flagged, so the agent and the user both see that
-   it tried.
+   instructions, between tags it cannot close, with API keys masked. A model
+   reads it first: output that looks like an injection is flagged, so the agent
+   and the user both see that it tried, and the audit log keeps it.
 
 Every decision is appended to an audit log, readable as the MCP resource
 `airlock://audit`.
@@ -63,17 +63,33 @@ through Symfony AI.
 
 ## What Symfony AI does
 
-- **Output classification.** A prompt-injection classifier,
-  `protectai/deberta-v3-base-prompt-injection-v2`, served by Hugging Face
-  Inference Providers through `symfony/ai-platform` and its Hugging Face bridge.
-- **Risk in plain words.** For a command asked every time, a small chat model
-  writes one line saying what it would do ("deletes build/ and everything in
-  it"), shown in the form. Structured output, so the line is a field, not prose
-  to parse.
+Both calls go to NVIDIA's API catalog through `symfony/ai-platform` and its
+generic bridge (NVIDIA speaks the OpenAI chat completions API), with Symfony
+AI's structured output: the answer is a field, not prose to parse. The models
+are set in the environment, not in the code.
 
-Both are optional. Without a Hugging Face token, the classifier is off and the
-form shows the rule that triggered instead; nothing about running a command
-depends on a model being reachable.
+- **Output check.** `minimaxai/minimax-m3.1-flash` reads the output, between
+  tags, and answers `clean` or `injection`. A long output is read in
+  overlapping chunks; one chunk flagged flags it all. NVIDIA's dedicated
+  safety models (`nemoguard-jailbreak-detect`, Llama Guard, the Nemotron
+  safety guards) were tried first and missed an injected README every time:
+  they moderate content, they do not look for instructions aimed at an agent.
+  Hugging Face's `protectai/deberta-v3-base-prompt-injection-v2` would fit,
+  but serving it through Inference Providers takes paid credits.
+- **Risk in plain words.** For a command asked every time,
+  `nvidia/nemotron-3.5-bolt-e4b` writes one line saying what it would do
+  ("deletes build/ and everything in it"), shown in the form under the rule,
+  never instead of it, and labelled as a model's reading. It sees the command
+  line only, and an answer that is not one short line is dropped.
+
+Both read attacker-controlled text, so neither decides anything: a model fooled
+into "clean" leaves the output marked as data with its secrets masked, and the
+plain-words line never changes what the user may answer.
+
+Both are optional. Without an NVIDIA key, or when the model is slow, rate
+limited or down, the output is marked as not checked, saying why, and the form
+shows the rule that triggered; nothing about running a command depends on a
+model being reachable.
 
 ## Built like it should be
 
@@ -82,7 +98,8 @@ Symfony 8.1, the MCP bundle, PHP 8.5. Every class `final`, value objects
 with strict rules and no baseline, PHP CS Fixer on `@Symfony` and its risky
 set, Rector, and one `composer check` that CI runs. PHPUnit: the parser and the
 policy by their public API; the server through both protocol eras over stdio;
-the Hugging Face calls against recorded responses. And tested by hand in a real
+the model calls against recorded responses, so the tests never reach the
+network. And tested by hand in a real
 client before each change is merged.
 
 Grants and the audit log are files under the user's configuration directory,
