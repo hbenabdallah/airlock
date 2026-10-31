@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Execution;
 
+use App\Output\SecretMasker;
 use App\Sandbox\SandboxDetector;
 use App\Sandbox\SshAgent;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -11,7 +12,8 @@ use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
- * Runs a command line with bash, in the sandbox, from the project, within a time limit.
+ * Runs a command line with bash, in the sandbox, from the project, within a time limit, and masks the secrets it
+ * printed before keeping the end of its output: a secret is never cut in two and half left in.
  */
 final readonly class CommandRunner
 {
@@ -21,6 +23,7 @@ final readonly class CommandRunner
     public function __construct(
         private SandboxDetector $sandboxDetector,
         private ProjectDirectory $projectDirectory,
+        private SecretMasker $secretMasker,
         #[Autowire(env: 'int:AIRLOCK_TIMEOUT')]
         private int $timeoutSeconds,
         #[Autowire(env: 'default::SSH_AUTH_SOCK')]
@@ -59,10 +62,17 @@ final readonly class CommandRunner
                 $output .= $chunk;
             });
         } catch (ProcessTimedOutException) {
-            return new CommandResult(null, $this->tail($output), hasTimedOut: true);
+            return $this->result(null, $output, hasTimedOut: true);
         }
 
-        return new CommandResult($process->getExitCode(), $this->tail($output));
+        return $this->result($process->getExitCode(), $output);
+    }
+
+    private function result(?int $exitCode, string $output, bool $hasTimedOut = false): CommandResult
+    {
+        $masked = $this->secretMasker->mask($output);
+
+        return new CommandResult($exitCode, $this->tail($masked->text), $hasTimedOut, $masked->maskedSecrets);
     }
 
     /**
