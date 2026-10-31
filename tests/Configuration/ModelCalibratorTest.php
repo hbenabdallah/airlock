@@ -48,6 +48,14 @@ final class ModelCalibratorTest extends TestCase
         self::assertSame("the model's rate limit was reached", $calibration->outputCheckFailure);
     }
 
+    public function testARateLimitOnThePlainWordsLineSaysNothingAboutTheModel(): void
+    {
+        $calibration = $this->calibrator()->calibrate(RecordedResponses::BASE_URL, 'test-key', RecordedModelApi::LIMITED_LINE);
+
+        self::assertTrue($calibration->isRateLimited(), 'A rate limit is not a model that gives no short line.');
+        self::assertTrue($calibration->passesOutputCheck());
+    }
+
     private function calibrator(): ModelCalibrator
     {
         $dispatcher = new EventDispatcher();

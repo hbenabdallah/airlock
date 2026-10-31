@@ -23,6 +23,9 @@ final readonly class RecordedModelApi
     /** A model the API always answers 429 for: its rate limit is reached. */
     public const string LIMITED = 'test/limited';
 
+    /** A model that checks outputs well but whose rate limit stops it before the plain-words line. */
+    public const string LIMITED_LINE = 'test/limited-line';
+
     public function __construct(
         #[Autowire(env: 'model_setting:AIRLOCK_AI_BASE_URL')]
         private string $baseUrl,
@@ -49,6 +52,9 @@ final readonly class RecordedModelApi
             return RecordedResponses::fixture('rate-limited', 429);
         }
         $schema = RecordedResponses::at($request, 'response_format', 'json_schema', 'name');
+        if (self::LIMITED_LINE === $model && 'PlainWords' === $schema) {
+            return RecordedResponses::fixture('rate-limited', 429);
+        }
         $content = RecordedResponses::at($request, 'messages', 1, 'content');
         $content = \is_string($content) ? $content : '';
         $seesInjection = self::BLIND !== $model && 1 === preg_match('/AI (coding )?(assistants|agents)|ignore (all )?previous instructions/i', $content);
