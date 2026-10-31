@@ -105,6 +105,14 @@ things up in the project instead of relying on memory:
 - Docs: https://symfony.com/doc/current/ (switch to the version matching
   `composer.json` if it differs).
 
+## Airlock: Git
+
+- Never commit to `main`: branch from an up-to-date `main`, named `feat/<what-it-adds>` or `fix/<what-it-fixes>` in
+  a few lowercase words (`feat/add-agent-loop`, `fix/audit-lock-timeout`).
+- Commit messages: one line, short, saying what the commit does (`Mask secrets in command output`). No body, no
+  trailers.
+- Several small commits, each passing `composer check`, rather than one large one.
+
 ## Airlock: PHP rules
 
 Technical rules for writing PHP: types, classes, control flow, errors, tests, tooling. They say nothing about
