@@ -1,0 +1,28 @@
+name: check
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+jobs:
+    check:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v5
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.5'
+                  coverage: none
+
+            # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which bubblewrap needs.
+            - name: Install bubblewrap
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y bubblewrap
+                  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+            - uses: ramsey/composer-install@v3
+
+            - run: composer check
