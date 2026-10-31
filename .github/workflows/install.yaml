@@ -1,0 +1,57 @@
+name: install
+
+# install.sh, run as a user runs it, against a release served locally: the platform is detected, a version is picked,
+# and a binary that does not match SHA256SUMS is refused.
+on:
+    pull_request:
+        paths:
+            - 'install.sh'
+            - '.github/workflows/install.yaml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    install:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        runs-on: ${{ matrix.os }}
+        env:
+            AIRLOCK_RELEASES_URL: http://127.0.0.1:8765
+            AIRLOCK_INSTALL_DIR: ${{ github.workspace }}/installed
+        steps:
+            - uses: actions/checkout@v5
+
+            - name: Lint
+              if: runner.os == 'Linux'
+              run: shellcheck -s sh install.sh
+
+            - name: Serve a fake release, latest and v1.0.0
+              run: |
+                  mkdir -p releases/latest/download releases/download/v1.0.0
+                  for target in linux-x86_64 linux-aarch64 macos-aarch64; do
+                      echo latest > "releases/latest/download/airlock-$target"
+                      echo one > "releases/download/v1.0.0/airlock-$target"
+                  done
+                  (cd releases/latest/download && shasum -a 256 airlock-* > SHA256SUMS)
+                  (cd releases/download/v1.0.0 && shasum -a 256 airlock-* > SHA256SUMS)
+                  (cd releases && python3 -m http.server 8765 --bind 127.0.0.1 > /dev/null 2>&1 &)
+                  sleep 1
+
+            - name: Install the latest release, piped into sh
+              run: sh < install.sh && test "$(cat installed/airlock)" = latest && test -x installed/airlock
+
+            - name: Install a given version
+              run: sh -s -- 1.0.0 < install.sh && test "$(cat installed/airlock)" = one
+
+            - name: Refuse a binary that does not match its checksum
+              run: |
+                  for target in linux-x86_64 linux-aarch64 macos-aarch64; do echo tampered > "releases/latest/download/airlock-$target"; done
+                  if sh install.sh; then exit 1; fi
+                  test "$(cat installed/airlock)" = one
+
+            - name: Refuse a version that does not exist
+              run: if sh install.sh 9.9.9; then exit 1; fi
