@@ -8,6 +8,7 @@ use App\Configuration\ConfigDirectory;
 use App\Execution\CommandResult;
 use App\Execution\CommandRunner;
 use App\Execution\ProjectDirectory;
+use App\Output\SecretMasker;
 use App\Sandbox\Bubblewrap;
 use App\Sandbox\SandboxDetector;
 use App\Sandbox\SandboxMode;
@@ -235,6 +236,23 @@ final class BubblewrapTest extends TestCase
         self::assertSame(3, $this->runInSandbox('exit 3')->exitCode);
     }
 
+    public function testASecretTheCommandPrintsIsMasked(): void
+    {
+        $result = $this->runInSandbox('echo DB_PASSWORD=hunter2');
+
+        self::assertSame("DB_PASSWORD=[masked: secret-assignment]\n", $result->output);
+        self::assertSame(1, $result->maskedSecrets);
+    }
+
+    public function testASecretWhereTheOutputIsCutIsMaskedWhole(): void
+    {
+        $result = $this->runInSandbox("printf 'AKIAIOSFODNN7EXAMPLE\\n'; head -c 65525 /dev/zero | tr '\\0' x");
+
+        self::assertStringStartsWith('[the first 14 bytes are cut]', $result->output);
+        self::assertStringNotContainsString('EXAMPLE', $result->output);
+        self::assertSame(1, $result->maskedSecrets);
+    }
+
     private function startSshAgent(): string
     {
         $socket = self::HOST_TMP.'/agent.sock';
@@ -255,7 +273,7 @@ final class BubblewrapTest extends TestCase
 
     private function runner(SandboxMode $mode, int $timeoutSeconds, ?string $project, ?string $sshAgentSocket): CommandRunner
     {
-        return new CommandRunner($this->detector($mode), new ProjectDirectory($project ?? $this->root.'/project'), $timeoutSeconds, $sshAgentSocket);
+        return new CommandRunner($this->detector($mode), new ProjectDirectory($project ?? $this->root.'/project'), new SecretMasker(), $timeoutSeconds, $sshAgentSocket);
     }
 
     private function detector(SandboxMode $mode): SandboxDetector

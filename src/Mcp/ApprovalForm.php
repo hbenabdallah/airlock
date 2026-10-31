@@ -14,7 +14,8 @@ use Mcp\Schema\Request\ElicitRequest;
 
 /**
  * The form a user answers about one command: why it is asked first, since clients fold long messages after a few
- * lines, then the command, where it runs, and what a grant would cover.
+ * lines, and a model's reading of it in plain words under the rule, never instead of it; then the command, where it
+ * runs, and what a grant would cover.
  */
 final readonly class ApprovalForm
 {
@@ -26,14 +27,15 @@ final readonly class ApprovalForm
     }
 
     /**
-     * @param list<Grant> $grants what "this session" and "always" would allow from now on
+     * @param list<Grant> $grants     what "this session" and "always" would allow from now on
+     * @param string|null $plainWords a model's one-line reading of the command, when there is one
      */
-    public function request(string $command, Assessment $assessment, array $grants): ElicitRequest
+    public function request(string $command, Assessment $assessment, array $grants, ?string $plainWords = null): ElicitRequest
     {
         $decisions = Decision::offeredFor($assessment->verdict);
 
         return new ElicitRequest(
-            $this->message($command, $assessment, $grants, $decisions),
+            $this->message($command, $assessment, $grants, $decisions, $plainWords),
             new ElicitationSchema(
                 [self::DECISION => new EnumSchemaDefinition(
                     title: 'Decision',
@@ -49,10 +51,10 @@ final readonly class ApprovalForm
      * @param list<Grant>    $grants
      * @param list<Decision> $decisions
      */
-    private function message(string $command, Assessment $assessment, array $grants, array $decisions): string
+    private function message(string $command, Assessment $assessment, array $grants, array $decisions, ?string $plainWords): string
     {
         $paragraphs = [
-            $this->whyAsked($assessment),
+            $this->whyAsked($assessment, $plainWords),
             "Run this command?\n\n    ".$command,
             $this->sandboxDetector->detect()->describe(),
         ];
@@ -66,10 +68,12 @@ final readonly class ApprovalForm
         return implode("\n\n", $paragraphs);
     }
 
-    private function whyAsked(Assessment $assessment): string
+    private function whyAsked(Assessment $assessment, ?string $plainWords): string
     {
         if (Verdict::AskEveryTime === $assessment->verdict) {
-            return 'Asked every time: '.implode('; ', $assessment->reasons).'.';
+            $rule = 'Asked every time: '.implode('; ', $assessment->reasons).'.';
+
+            return null === $plainWords ? $rule : $rule."\nIn plain words (from a model, may be wrong): ".$plainWords;
         }
 
         return 'Not covered by any grant yet.';

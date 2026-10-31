@@ -15,11 +15,14 @@ use App\Grant\Grants;
 use App\Grant\InvalidGrantsException;
 use App\Grant\ProjectGrants;
 use App\Grant\SessionGrants;
+use App\Output\InjectionClassifier;
+use App\Output\OutputCheck;
 use App\Policy\Assessment;
 use App\Policy\CommandPolicy;
 use App\Policy\InvalidPolicyException;
 use App\Policy\PolicyFiles;
 use App\Policy\Verdict;
+use App\Risk\RiskExplainer;
 use App\Shell\CommandLine;
 use App\Shell\ShellParser;
 use Mcp\Capability\Attribute\McpTool;
@@ -50,8 +53,11 @@ final readonly class RunCommandTool
         private SessionGrants $sessionGrants,
         private ProjectGrants $projectGrants,
         private ApprovalForm $approvalForm,
+        private RiskExplainer $riskExplainer,
         private Approvals $approvals,
         private CommandRunner $runner,
+        private InjectionClassifier $injectionClassifier,
+        private OutputReport $outputReport,
         private AuditLog $auditLog,
         private ProjectDirectory $projectDirectory,
         private ClockInterface $clock,
@@ -93,7 +99,9 @@ final readonly class RunCommandTool
 
         $decision = $this->approvals->answer($context, $command, $assessment->verdict);
         if (!$decision instanceof Decision) {
-            return $this->approvals->ask($context, $command, $this->approvalForm->request($command, $assessment, $this->grantRules->for($line)));
+            $plainWords = Verdict::AskEveryTime === $assessment->verdict ? $this->riskExplainer->explain($command) : null;
+
+            return $this->approvals->ask($context, $command, $this->approvalForm->request($command, $assessment, $this->grantRules->for($line), $plainWords));
         }
 
         return $this->decide($decision, $command, $line, $assessment);
@@ -131,18 +139,13 @@ final readonly class RunCommandTool
     private function run(string $command, Assessment $assessment, Outcome $outcome, \Closure $run): CallToolResult
     {
         $result = $run($command);
-        $this->audit($command, $assessment, $outcome, $result);
+        $check = $this->injectionClassifier->check($result->output);
+        $this->audit($command, $assessment, $outcome, $result, check: $check);
 
-        if ($result->hasTimedOut) {
-            return CallToolResult::error([new TextContent("Stopped: the command ran past its time limit.\n\n".$result->output)]);
-        }
-
-        $content = [new TextContent(\sprintf("Exit code %d\n\n%s", $result->exitCode ?? -1, $result->output))];
-
-        return $result->isSuccessful() ? CallToolResult::success($content) : CallToolResult::error($content);
+        return $this->outputReport->result($result, $check);
     }
 
-    private function audit(string $command, Assessment $assessment, Outcome $outcome, ?CommandResult $result = null, ?string $detail = null): void
+    private function audit(string $command, Assessment $assessment, Outcome $outcome, ?CommandResult $result = null, ?string $detail = null, ?OutputCheck $check = null): void
     {
         $this->auditLog->append(new AuditEntry(
             $this->clock->now(),
@@ -154,6 +157,8 @@ final readonly class RunCommandTool
             $result?->exitCode,
             $result instanceof CommandResult && $result->hasTimedOut,
             $detail,
+            $check,
+            $result?->maskedSecrets,
         ));
     }
 }
