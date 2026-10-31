@@ -1,0 +1,101 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Grant;
+
+use App\Configuration\ConfigDirectory;
+use App\Execution\ProjectDirectory;
+use App\Grant\Grant;
+use App\Grant\InvalidGrantsException;
+use App\Grant\ProjectGrants;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Lock\Store\InMemoryStore;
+
+final class ProjectGrantsTest extends TestCase
+{
+    private const string ROOT = __DIR__.'/../../var/test-grants';
+
+    private Filesystem $filesystem;
+
+    private ConfigDirectory $configDirectory;
+
+    private ProjectDirectory $project;
+
+    #[\Override]
+    protected function setUp(): void
+    {
+        $this->filesystem = new Filesystem();
+        $this->filesystem->remove(self::ROOT);
+        $this->filesystem->mkdir([self::ROOT.'/home', self::ROOT.'/project']);
+        $this->configDirectory = new ConfigDirectory((string) realpath(self::ROOT.'/home'));
+        $this->project = new ProjectDirectory(self::ROOT.'/project');
+    }
+
+    #[\Override]
+    protected function tearDown(): void
+    {
+        $this->filesystem->remove(self::ROOT);
+    }
+
+    public function testAProjectWithoutGrantsHasNone(): void
+    {
+        self::assertSame([], $this->grants()->all());
+    }
+
+    public function testGrantsAddedAreReadBack(): void
+    {
+        $this->grants()->add([new Grant(['make', 'test'], coversLongerCommands: true), new Grant(['ls', '-la'], coversLongerCommands: false)]);
+
+        self::assertEquals([new Grant(['make', 'test'], true), new Grant(['ls', '-la'], false)], $this->grants()->all());
+    }
+
+    public function testAGrantGivenTwiceIsKeptOnce(): void
+    {
+        $this->grants()->add([new Grant(['make', 'test'], true)]);
+        $this->grants()->add([new Grant(['make', 'test'], true)]);
+
+        self::assertCount(1, $this->grants()->all());
+    }
+
+    public function testGrantsAreKeptPerProject(): void
+    {
+        $this->grants()->add([new Grant(['make', 'test'], true)]);
+        $this->filesystem->mkdir(self::ROOT.'/other');
+
+        $other = new ProjectGrants($this->configDirectory, new ProjectDirectory(self::ROOT.'/other'), new LockFactory(new InMemoryStore()));
+
+        self::assertSame([], $other->all());
+    }
+
+    #[DataProvider('invalidFiles')]
+    public function testAFileThatCannotBeReadIsNeverGuessedAt(string $content): void
+    {
+        $this->filesystem->dumpFile($this->configDirectory->forProject($this->project->path).'/grants.yaml', $content);
+
+        $this->expectException(InvalidGrantsException::class);
+
+        $this->grants()->all();
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidFiles(): iterable
+    {
+        yield 'not YAML' => ["grants: [\n"];
+        yield 'no grants list' => ["rm: -rf\n"];
+        yield 'a command that is not a list of words' => ["grants:\n  - {command: 'rm -rf ~', prefix: false}\n"];
+        yield 'an empty command' => ["grants:\n  - {command: [], prefix: true}\n"];
+        yield 'a word that is not a string' => ["grants:\n  - {command: [rm, [x]], prefix: true}\n"];
+        yield 'no prefix flag' => ["grants:\n  - {command: [ls]}\n"];
+    }
+
+    private function grants(): ProjectGrants
+    {
+        return new ProjectGrants($this->configDirectory, $this->project, new LockFactory(new InMemoryStore()));
+    }
+}
