@@ -15,6 +15,7 @@ final readonly class DataTag
      * @param non-empty-string      $name
      * @param array<string, string> $attributes
      */
+    #[\NoDiscard('only the wrapped text is safe to show')]
     public static function wrap(string $name, string $content, array $attributes = []): string
     {
         $opening = $name;

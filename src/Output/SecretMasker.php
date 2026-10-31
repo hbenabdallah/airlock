@@ -12,6 +12,7 @@ final readonly class SecretMasker
 {
     public const string WITHHELD = '[Airlock could not scan this output for secrets: it is withheld]';
 
+    #[\NoDiscard('the text to show is the masked one')]
     public function mask(string $text): MaskedText
     {
         $masked = 0;
