@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Output;
 
 use Psr\Log\LoggerInterface;
+use Symfony\AI\Platform\Exception\ExceptionInterface as PlatformException;
 use Symfony\AI\Platform\Exception\RateLimitExceededException;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
@@ -13,6 +14,7 @@ use Symfony\AI\Platform\Result\DeferredResult;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\Target;
+use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientException;
 use Symfony\Contracts\HttpClient\Exception\TimeoutExceptionInterface;
 
 /**
@@ -69,7 +71,7 @@ final readonly class ModelInjectionClassifier implements InjectionClassifier
         try {
             $answers = array_map(fn (string $chunk): DeferredResult => $this->ask($model, $chunk), $chunks->chunks);
             $labels = array_map($this->label(...), $answers);
-        } catch (\Throwable $e) {
+        } catch (PlatformException|HttpClientException|\UnexpectedValueException $e) {
             $reason = $this->reasonFor($e);
             $this->logger->warning('Airlock could not check a command output: {reason}.', ['reason' => $reason->describe(), 'exception' => $e]);
 
@@ -106,7 +108,7 @@ final readonly class ModelInjectionClassifier implements InjectionClassifier
         return $verdict->verdict;
     }
 
-    private function reasonFor(\Throwable $e): NotCheckedReason
+    private function reasonFor(PlatformException|HttpClientException|\UnexpectedValueException $e): NotCheckedReason
     {
         return match (true) {
             $e instanceof RateLimitExceededException => NotCheckedReason::RateLimited,

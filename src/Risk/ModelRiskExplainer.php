@@ -6,12 +6,14 @@ namespace App\Risk;
 
 use App\Output\DataTag;
 use Psr\Log\LoggerInterface;
+use Symfony\AI\Platform\Exception\ExceptionInterface as PlatformException;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Component\DependencyInjection\Attribute\AsAlias;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\Target;
+use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientException;
 
 /**
  * Asks a small chat model, through Symfony AI's structured output, what a command would do, in plain words.
@@ -61,7 +63,7 @@ final readonly class ModelRiskExplainer implements RiskExplainer
                 ),
                 ['response_format' => PlainWords::class, 'max_tokens' => 60, 'temperature' => 0],
             )->asObject();
-        } catch (\Throwable $e) {
+        } catch (PlatformException|HttpClientException $e) {
             $this->logger->warning('Airlock could not put a command in plain words.', ['exception' => $e]);
 
             return null;
