@@ -3,8 +3,8 @@ ai:
     platform:
         generic:
             models:
-                base_url: '%env(AIRLOCK_AI_BASE_URL)%'
-                api_key: '%env(AIRLOCK_AI_API_KEY)%'
+                base_url: '%env(model_setting:AIRLOCK_AI_BASE_URL)%'
+                api_key: '%env(model_setting:AIRLOCK_AI_API_KEY)%'
                 http_client: 'models.client'
                 supports_embeddings: false
 

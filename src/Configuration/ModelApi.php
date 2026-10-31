@@ -12,9 +12,9 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 final readonly class ModelApi
 {
     public function __construct(
-        #[Autowire(env: 'AIRLOCK_AI_BASE_URL')]
+        #[Autowire(env: 'model_setting:AIRLOCK_AI_BASE_URL')]
         private string $baseUrl,
-        #[Autowire(env: 'AIRLOCK_AI_API_KEY')]
+        #[Autowire(env: 'model_setting:AIRLOCK_AI_API_KEY')]
         #[\SensitiveParameter]
         private string $apiKey,
     ) {

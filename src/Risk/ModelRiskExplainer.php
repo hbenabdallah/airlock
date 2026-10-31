@@ -40,7 +40,7 @@ final readonly class ModelRiskExplainer implements RiskExplainer
         private PlatformInterface $platform,
         private LoggerInterface $logger,
         private ModelApi $modelApi,
-        #[Autowire(env: 'AIRLOCK_RISK_MODEL')]
+        #[Autowire(env: 'model_setting:AIRLOCK_RISK_MODEL')]
         private string $model,
     ) {
     }
@@ -48,25 +48,35 @@ final readonly class ModelRiskExplainer implements RiskExplainer
     #[\Override]
     public function explain(string $command): ?string
     {
-        $model = $this->model;
-        if ('' === $model || !$this->modelApi->isConfigured()) {
-            return null;
-        }
-
         try {
-            $answer = $this->platform->invoke(
-                $model,
-                new MessageBag(
-                    Message::forSystem(self::INSTRUCTIONS),
-                    Message::ofUser(DataTag::wrap('command', $command)),
-                ),
-                ['response_format' => PlainWords::class, 'max_tokens' => 60, 'temperature' => 0],
-            )->asObject();
+            return $this->plainWords($command);
         } catch (PlatformException|HttpClientException $e) {
             $this->logger->warning('Airlock could not put a command in plain words.', ['exception' => $e]);
 
             return null;
         }
+    }
+
+    /**
+     * The line, or null when no model is set or its answer is not one short line.
+     *
+     * @throws PlatformException|HttpClientException when the model cannot be asked
+     */
+    public function plainWords(string $command): ?string
+    {
+        $model = $this->model;
+        if ('' === $model || !$this->modelApi->isConfigured()) {
+            return null;
+        }
+
+        $answer = $this->platform->invoke(
+            $model,
+            new MessageBag(
+                Message::forSystem(self::INSTRUCTIONS),
+                Message::ofUser(DataTag::wrap('command', $command)),
+            ),
+            ['response_format' => PlainWords::class, 'max_tokens' => 60, 'temperature' => 0],
+        )->asObject();
 
         return $answer instanceof PlainWords ? $this->oneLine($answer->summary) : null;
     }

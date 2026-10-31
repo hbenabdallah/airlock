@@ -196,25 +196,42 @@ Airlock yet: tell us how they behave.
 ### Optional: the model checks
 
 The output check and the plain-words line in the form ask a chat model, through any API that serves
-`POST /v1/chat/completions` with structured output (JSON schema). Nothing is set by default: pick the API and two
-models, and set four variables.
+`POST /v1/chat/completions` with structured output (JSON schema). Nothing is set by default: until a model is set,
+that check is off and everything still runs (outputs say they were not checked, the form shows only the rule).
 
-For instance, NVIDIA's API catalog has a free tier (get a key at [build.nvidia.com](https://build.nvidia.com)), and
-these are the models Airlock was tested with:
+Set them up in a terminal, not through your agent: the key never passes through it.
 
 ```bash
-AIRLOCK_AI_BASE_URL=https://integrate.api.nvidia.com
-AIRLOCK_AI_API_KEY=nvapi-...
-AIRLOCK_OUTPUT_CHECK_MODEL=minimaxai/minimax-m3.1-flash
-AIRLOCK_RISK_MODEL=nvidia/nemotron-3.5-bolt-e4b
+airlock configure
 ```
 
-Give them to the server: in the `env` block of your client's configuration, next to `AIRLOCK_PROJECT_DIR` (with Docker,
-the `-e` options pass them on from there); or, natively, in `~/airlock/.env.local` (git-ignored).
+Natively, `php ~/airlock/bin/console configure`; with Docker:
 
-Until the URL, the key and a model are set, that check is off and everything still runs: outputs say they were not
-checked, and the form shows only the rule. A model that does not support structured output, or answers anything but
-the expected field, is treated the same way.
+```bash
+docker run --rm -it -u "$(id -u):$(id -g)" -e XDG_CONFIG_HOME=/airlock-config -v ~/.config/airlock:/airlock-config/airlock --entrypoint php airlock /app/bin/console configure
+```
+
+It asks for the API's URL and its key (not shown as you type), lists the API's models and calibrates them with the
+very classes the server uses: a model must flag a known prompt injection, pass a harmless output and sum up a
+dangerous command in one short line. It keeps the first model that passes everything, else the first that passes each
+check; if none does, it asks you for one, calibrates it, and keeps a failing one only if you insist. Everything goes
+to `~/.config/airlock/models.yaml`, readable by you only and hidden from every command Airlock runs. Restart your MCP
+client afterwards.
+
+- `--output-check-model` and `--risk-model` name the models instead of finding them; `--base-url` skips that question.
+- `--check` calibrates the models the server uses (environment variables first, then `models.yaml`) and changes
+  nothing: run it when a model starts failing.
+- `--max-probes` (default 15) bounds how many models that answer are calibrated; a listed model that gives no answer
+  (many APIs list withdrawn ones) does not count.
+
+For instance, NVIDIA's API catalog has a free tier (get a key at [build.nvidia.com](https://build.nvidia.com)): its URL
+is `https://integrate.api.nvidia.com`, and `airlock configure` found `minimaxai/minimax-m3.1-flash` fit for both
+checks. On a free tier, calibrating many models can hit the rate limit: Airlock waits once, then tells you to run it
+again a minute later.
+
+The four `AIRLOCK_AI_*` variables of [Configuration](#configuration) still work, and win over `models.yaml`: set them in
+the `env` block of your client's configuration (with Docker, the `-e` options pass them on), or natively in
+`~/airlock/.env.local` (git-ignored).
 
 ## Try the demo
 
@@ -263,10 +280,10 @@ variables, which win.
 | `AIRLOCK_TIMEOUT` | `120` | Seconds a command may run before it is stopped |
 | `AIRLOCK_PROJECT_DIR` | the current directory | The project commands run in |
 | `AIRLOCK_STATE_KEY` | a key per process | Signs the state a pending approval carries; at least 32 bytes |
-| `AIRLOCK_AI_BASE_URL` | empty: checks off | The chat completions API, without `/v1/chat/completions` |
-| `AIRLOCK_AI_API_KEY` | empty: checks off | Key for that API |
-| `AIRLOCK_OUTPUT_CHECK_MODEL` | empty: check off | Model that flags prompt injections |
-| `AIRLOCK_RISK_MODEL` | empty: line off | Model that writes the plain-words line |
+| `AIRLOCK_AI_BASE_URL` | `models.yaml`, else checks off | The chat completions API, without `/v1/chat/completions` |
+| `AIRLOCK_AI_API_KEY` | `models.yaml`, else checks off | Key for that API |
+| `AIRLOCK_OUTPUT_CHECK_MODEL` | `models.yaml`, else check off | Model that flags prompt injections |
+| `AIRLOCK_RISK_MODEL` | `models.yaml`, else line off | Model that writes the plain-words line |
 | `AIRLOCK_AI_TIMEOUT` | `8` | Seconds a model may take before Airlock goes on without it |
 
 No command ever sees a variable starting with `AIRLOCK_`.
@@ -275,6 +292,7 @@ Airlock's own files live in `~/.config/airlock/` (or `$XDG_CONFIG_HOME/airlock/`
 
 | File | What it holds |
 |---|---|
+| `models.yaml` | What `airlock configure` set up: the model API, its key, the models |
 | `policy.yaml` | Commands you refuse everywhere |
 | `projects/<name>-<hash>/policy.yaml` | Commands you refuse in one project |
 | `projects/<name>-<hash>/grants.yaml` | What *always for this project* allowed |
@@ -296,7 +314,7 @@ refuse:
   says so and asks about every command.
 - **"Nothing runs until this is fixed: …"**: a policy or grants file is invalid; the message names it.
 - **"It was not checked for prompt injection: …"**: no key, or the model was slow, rate limited or down. The command
-  ran; only the check is missing.
+  ran; only the check is missing. `airlock configure --check` tells whether the model still passes.
 - **The client does not list Airlock**: run the server command in a terminal, from the project. It should wait
   silently for input (`Ctrl+D` ends it); an error there is what the client meets. Claude Code's `claude mcp list` runs
   the same check.
