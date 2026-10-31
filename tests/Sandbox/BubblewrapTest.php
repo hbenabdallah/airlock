@@ -141,6 +141,24 @@ final class BubblewrapTest extends TestCase
         self::assertFileDoesNotExist($this->root.'/project/.git/hooks/pre-commit');
     }
 
+    public function testAGitHookCannotBePlantedWhenTheHooksDirectoryIsMissing(): void
+    {
+        $this->filesystem->remove($this->root.'/project/.git/hooks');
+
+        $this->runInSandbox('mkdir -p .git/hooks && echo "rm -rf ~" > .git/hooks/pre-commit');
+
+        self::assertFileDoesNotExist($this->root.'/project/.git/hooks/pre-commit');
+    }
+
+    public function testAGitConfigurationCannotBePlantedWhenItIsMissing(): void
+    {
+        $this->filesystem->remove($this->root.'/project/.git/config');
+
+        $this->runInSandbox('printf "[core]\n\thooksPath = /tmp/evil\n" > .git/config');
+
+        self::assertSame('', $this->filesystem->readFile($this->root.'/project/.git/config'));
+    }
+
     public function testTheGitConfigurationCannotBeChanged(): void
     {
         $this->runInSandbox('echo "[core] hooksPath = /tmp/hooks" >> .git/config');

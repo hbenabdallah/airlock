@@ -6,6 +6,7 @@ namespace App\Sandbox;
 
 use App\Configuration\ConfigDirectory;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Where a confined command may write, what it gets a private copy of, and what it must not read or change.
@@ -28,8 +29,10 @@ final readonly class SandboxPaths
     /** Under Airlock's own directory, what holds its secrets. */
     private const array AIRLOCK_SECRETS = ['.env.local', '.env.*.local', 'config/secrets'];
 
-    /** Under the project, what git runs or obeys outside the sandbox, later, as the user. */
-    private const array GIT_CONTROLS = ['.git/hooks', '.git/config'];
+    /** Under the project, what git runs or obeys outside the sandbox, later, as the user: directories, then files. */
+    private const array GIT_CONTROL_DIRECTORIES = ['.git/hooks'];
+
+    private const array GIT_CONTROL_FILES = ['.git/config'];
 
     public function __construct(
         #[Autowire(env: 'HOME')]
@@ -39,6 +42,7 @@ final readonly class SandboxPaths
         private ConfigDirectory $configDirectory,
         #[Autowire(env: 'default::XDG_RUNTIME_DIR')]
         private ?string $runtimeDirectory = null,
+        private Filesystem $filesystem = new Filesystem(),
     ) {
     }
 
@@ -90,13 +94,22 @@ final readonly class SandboxPaths
     }
 
     /**
-     * Existing paths of the project a command may read but not change.
+     * Paths of the project a command may read but not change. In a git repository, those git would otherwise create
+     * are made first, empty, as `git init` makes them: a path that does not exist cannot be kept read-only, and a
+     * command could plant it.
      *
      * @return list<string>
      */
     public function readOnlyInProject(string $projectDirectory): array
     {
-        return $this->existing(array_map(static fn (string $control): string => $projectDirectory.'/'.$control, self::GIT_CONTROLS));
+        $directories = array_map(static fn (string $control): string => $projectDirectory.'/'.$control, self::GIT_CONTROL_DIRECTORIES);
+        $files = array_map(static fn (string $control): string => $projectDirectory.'/'.$control, self::GIT_CONTROL_FILES);
+        if (is_dir($projectDirectory.'/.git')) {
+            $this->filesystem->mkdir($directories);
+            $this->filesystem->touch($files);
+        }
+
+        return $this->existing([...$directories, ...$files]);
     }
 
     /**
