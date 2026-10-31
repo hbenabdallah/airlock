@@ -14,7 +14,7 @@ enum NotCheckedReason: string
     public function describe(): string
     {
         return match ($this) {
-            self::NotConfigured => 'no model API is configured',
+            self::NotConfigured => 'no model API is configured; set one up with `airlock configure`, in a terminal',
             self::Timeout => 'the model did not answer in time',
             self::RateLimited => "the model's rate limit was reached",
             self::Error => 'the model could not be reached or gave no usable answer',
