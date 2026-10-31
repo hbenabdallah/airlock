@@ -7,7 +7,7 @@ namespace App\Shell;
 final readonly class Token
 {
     /**
-     * @param bool $isLiteral whether the word means the same whatever runs it: no variable, no substitution, no glob
+     * @param bool $isLiteral whether the word means the same whatever runs it: no variable, no substitution, no glob or brace expansion
      */
     public function __construct(
         public TokenType $type,

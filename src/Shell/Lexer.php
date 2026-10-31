@@ -14,8 +14,11 @@ namespace App\Shell;
  */
 final class Lexer
 {
-    /** Characters that, after a `$`, start an expansion rather than stand for a dollar sign. */
-    private const string EXPANSION_START = '/^[A-Za-z0-9_{@*#?$!-]$/';
+    /** Characters that, after a `$`, start an expansion rather than stand for a dollar sign: `$'...'` and `$"..."` too. */
+    private const string EXPANSION_START = '/^[A-Za-z0-9_{@*#?$!\'"-]$/';
+
+    /** Characters that, unquoted, make bash expand the word: globs, and braces (`{rm,-rf,x}` is `rm -rf x`). */
+    private const array EXPANDING = ['*', '?', '[', '{'];
 
     private const array ESCAPABLE_IN_DOUBLE_QUOTES = ['"', '\\', '$', '`', "\n"];
 
@@ -72,7 +75,7 @@ final class Lexer
             '&' === $character && '>' !== $next => $this->readAmpersand($next),
             ('<' === $character || '>' === $character) && '(' === $next => $this->readProcessSubstitution($character),
             \in_array($character, ['<', '>', '&'], true) => $this->readRedirection(),
-            \in_array($character, ['*', '?', '['], true) => $this->append($character, isLiteral: false),
+            \in_array($character, self::EXPANDING, true) => $this->append($character, isLiteral: false),
             default => $this->append($character),
         };
     }

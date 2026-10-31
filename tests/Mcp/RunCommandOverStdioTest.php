@@ -84,7 +84,7 @@ final class RunCommandOverStdioTest extends TestCase
 
     public function testWithoutAnApiKeyTheFormShowsOnlyTheRule(): void
     {
-        $form = $this->firstForm($this->client(['AIRLOCK_NVIDIA_API_KEY' => '']), self::DANGEROUS);
+        $form = $this->firstForm($this->client(['AIRLOCK_AI_API_KEY' => '']), self::DANGEROUS);
 
         self::assertStringStartsWith("Asked every time: `rm -rf build`: it deletes recursively.\n\nRun this command?", $this->text($form, 'message'));
     }
@@ -291,13 +291,13 @@ final class RunCommandOverStdioTest extends TestCase
     public function testWithoutAnApiKeyTheCommandStillRunsAndTheOutputIsSaidNotChecked(): void
     {
         $this->filesystem->dumpFile($this->project.'/README.md', self::INJECTED_README);
-        $client = $this->client(['AIRLOCK_NVIDIA_API_KEY' => '']);
+        $client = $this->client(['AIRLOCK_AI_API_KEY' => '']);
 
         $answer = $client->request($this->modernCall(2, 'cat README.md', 'once', $this->askState($client, 'cat README.md')));
 
         self::assertFalse($this->field($answer, 'result', 'isError'));
-        self::assertStringContainsString('It was not checked for prompt injection: no API key is configured.', $this->text($answer, 'result', 'content', 0, 'text'));
-        self::assertSame(['output_check' => 'not_checked', 'output_check_reason' => 'no_api_key'], array_intersect_key($this->lastAuditEntry($client), ['output_check' => 0, 'output_check_reason' => 0]));
+        self::assertStringContainsString('It was not checked for prompt injection: no model API is configured.', $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertSame(['output_check' => 'not_checked', 'output_check_reason' => 'not_configured'], array_intersect_key($this->lastAuditEntry($client), ['output_check' => 0, 'output_check_reason' => 0]));
     }
 
     public function testASecretInTheOutputIsMaskedForTheAgentAndCountedInTheAuditLog(): void
@@ -324,11 +324,11 @@ final class RunCommandOverStdioTest extends TestCase
 
     public function testInTheHandshakeEraWithoutAnApiKeyTheCommandStillRuns(): void
     {
-        $client = $this->handshakeClient(['AIRLOCK_NVIDIA_API_KEY' => '']);
+        $client = $this->handshakeClient(['AIRLOCK_AI_API_KEY' => '']);
 
         $answer = $client->request($this->elicitationAnswer($client->request($this->handshakeCall(2, self::COMMAND)), 'once'));
 
-        self::assertStringContainsString("It was not checked for prompt injection: no API key is configured.\n<command-output exit-code=\"0\">\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
+        self::assertStringContainsString("It was not checked for prompt injection: no model API is configured.\n<command-output exit-code=\"0\">\nran\n", $this->text($answer, 'result', 'content', 0, 'text'));
     }
 
     public function testInTheHandshakeEraTheServerAsksThroughElicitationAndRunsWhenApproved(): void

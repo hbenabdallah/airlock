@@ -102,6 +102,11 @@ final class ShellParserTest extends TestCase
         yield 'a program named by a braced variable' => ['${CMD} -rf ~', Opacity::ComputedProgram];
         yield 'a program named by a glob' => ['/???/r? -rf ~', Opacity::ComputedProgram];
         yield 'a program named by a variable in double quotes' => ['"$EDITOR" x', Opacity::ComputedProgram];
+        yield 'a program in ANSI-C quotes, which bash decodes' => ["\$'\\x72m' -rf ~", Opacity::ComputedProgram];
+        yield 'a program in plain ANSI-C quotes' => ["\$'rm' -rf ~", Opacity::ComputedProgram];
+        yield 'a program in locale quotes' => ['$"rm" -rf ~', Opacity::ComputedProgram];
+        yield 'a program spelled by a brace expansion' => ['{rm,-rf,~}', Opacity::ComputedProgram];
+        yield 'a program completed by a brace expansion' => ['r{m,} -rf ~', Opacity::ComputedProgram];
         yield 'an unclosed single quote' => ["echo 'abc", Opacity::UnclosedQuote];
         yield 'an unclosed double quote' => ['echo "abc', Opacity::UnclosedQuote];
         yield 'a redirection with no target' => ['echo hi >', Opacity::MissingRedirectionTarget];
@@ -128,6 +133,8 @@ final class ShellParserTest extends TestCase
         yield 'a keyword as an argument' => ['echo if then fi'];
         yield 'a keyword as a redirection target' => ['echo x > done'];
         yield 'a keyword quoted as data' => ['git commit -m "for while"'];
+        yield 'braces as an argument' => ['find . -name "*.php" -exec wc -l {} +'];
+        yield 'a group in braces' => ['{ make test; make lint; }'];
         yield 'an assignment before a literal program' => ['LANG=C sort x'];
     }
 }

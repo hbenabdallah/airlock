@@ -12,18 +12,20 @@ use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
 /**
- * Answers NVIDIA's API recorded once from the real one, served by a mock client to a real Symfony AI platform.
+ * Answers recorded once from a real model API, served by a mock client to a real Symfony AI platform.
  */
 final class RecordedResponses
 {
-    public const string DIRECTORY = __DIR__.'/../Fixtures/nvidia';
+    public const string BASE_URL = 'https://models.example.test';
+
+    public const string DIRECTORY = __DIR__.'/../Fixtures/models';
 
     public static function platform(MockHttpClient $httpClient): PlatformInterface
     {
         $dispatcher = new EventDispatcher();
         $dispatcher->addSubscriber(new PlatformSubscriber());
 
-        return Factory::createPlatform('https://integrate.api.nvidia.com', 'test-key', $httpClient, eventDispatcher: $dispatcher, supportsEmbeddings: false, name: 'nvidia');
+        return Factory::createPlatform(self::BASE_URL, 'test-key', $httpClient, eventDispatcher: $dispatcher, supportsEmbeddings: false, name: 'models');
     }
 
     public static function fixture(string $name, int $status = 200): MockResponse

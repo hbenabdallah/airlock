@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Output;
 
+use App\Configuration\ModelApi;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Platform\Exception\ExceptionInterface as PlatformException;
 use Symfony\AI\Platform\Exception\RateLimitExceededException;
@@ -38,13 +39,11 @@ final readonly class ModelInjectionClassifier implements InjectionClassifier
         TEXT;
 
     public function __construct(
-        #[Target('generic_nvidia')]
+        #[Target('generic_models')]
         private PlatformInterface $platform,
         private OutputChunker $chunker,
         private LoggerInterface $logger,
-        #[Autowire(env: 'AIRLOCK_NVIDIA_API_KEY')]
-        #[\SensitiveParameter]
-        private string $apiKey,
+        private ModelApi $modelApi,
         #[Autowire(env: 'AIRLOCK_OUTPUT_CHECK_MODEL')]
         private string $model,
     ) {
@@ -53,18 +52,12 @@ final readonly class ModelInjectionClassifier implements InjectionClassifier
     #[\Override]
     public function check(string $output): OutputCheck
     {
-        if ('' === $this->apiKey) {
-            return OutputCheck::notChecked(NotCheckedReason::NoApiKey);
+        $model = $this->model;
+        if ('' === $model || !$this->modelApi->isConfigured()) {
+            return OutputCheck::notChecked(NotCheckedReason::NotConfigured);
         }
         if ('' === trim($output)) {
             return OutputCheck::clean();
-        }
-
-        $model = $this->model;
-        if ('' === $model) {
-            $this->logger->warning('Airlock could not check a command output: no model is configured.');
-
-            return OutputCheck::notChecked(NotCheckedReason::Error);
         }
 
         $chunks = $this->chunker->split($output);

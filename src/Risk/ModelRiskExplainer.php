@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Risk;
 
+use App\Configuration\ModelApi;
 use App\Output\DataTag;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Platform\Exception\ExceptionInterface as PlatformException;
@@ -35,12 +36,10 @@ final readonly class ModelRiskExplainer implements RiskExplainer
         TEXT;
 
     public function __construct(
-        #[Target('generic_nvidia')]
+        #[Target('generic_models')]
         private PlatformInterface $platform,
         private LoggerInterface $logger,
-        #[Autowire(env: 'AIRLOCK_NVIDIA_API_KEY')]
-        #[\SensitiveParameter]
-        private string $apiKey,
+        private ModelApi $modelApi,
         #[Autowire(env: 'AIRLOCK_RISK_MODEL')]
         private string $model,
     ) {
@@ -50,7 +49,7 @@ final readonly class ModelRiskExplainer implements RiskExplainer
     public function explain(string $command): ?string
     {
         $model = $this->model;
-        if ('' === $this->apiKey || '' === $model) {
+        if ('' === $model || !$this->modelApi->isConfigured()) {
             return null;
         }
 
