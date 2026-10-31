@@ -103,6 +103,14 @@ jobs:
             - name: Run one command through the binary, as a client would
               run: cd "$(mktemp -d)" && python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" -- "$GITHUB_WORKSPACE/airlock-${{ matrix.target }}" mcp:server
 
+            # The environment wins over the configuration packed in the binary: an API set there is called (and refused).
+            - name: Read the model API from the environment
+              env:
+                  AIRLOCK_AI_BASE_URL: http://127.0.0.1:9
+                  AIRLOCK_AI_API_KEY: smoke
+                  AIRLOCK_OUTPUT_CHECK_MODEL: smoke/model
+              run: cd "$(mktemp -d)" && python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" --expect "the model could not be reached" -- "$GITHUB_WORKSPACE/airlock-${{ matrix.target }}" mcp:server
+
             - uses: actions/upload-artifact@v4
               with:
                   name: airlock-${{ matrix.target }}
