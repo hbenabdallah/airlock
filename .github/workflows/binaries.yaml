@@ -1,0 +1,126 @@
+name: binaries
+
+# One executable per platform: a static PHP 8.5 runtime (static-php-cli's micro) with Airlock's PHAR appended.
+# Built and smoke-tested on each platform whenever what goes into them changes; published on a version tag.
+on:
+    push:
+        tags: ['v*']
+    pull_request:
+        paths:
+            - '.github/workflows/binaries.yaml'
+            - '.github/scripts/**'
+            - 'bin/build-phar.php'
+            - 'composer.lock'
+            - 'config/**'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+env:
+    PHP_VERSION: '8.5'
+    PHP_EXTENSIONS: 'ctype,curl,dom,fileinfo,filter,iconv,mbstring,openssl,pcntl,phar,posix,session,tokenizer,xml,zlib'
+
+jobs:
+    phar:
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v5
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: ${{ env.PHP_VERSION }}
+                  coverage: none
+                  ini-values: phar.readonly=0
+
+            - run: composer install --no-dev --classmap-authoritative --no-scripts --no-interaction --no-progress
+
+            - run: composer dump-env prod
+
+            - run: php bin/console cache:warmup
+
+            - run: php bin/build-phar.php build/airlock.phar
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: airlock.phar
+                  path: build/airlock.phar
+
+    binary:
+        needs: phar
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - { target: linux-x86_64, os: ubuntu-24.04 }
+                    - { target: linux-aarch64, os: ubuntu-24.04-arm }
+                    - { target: macos-aarch64, os: macos-15 }
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v5
+
+            - uses: actions/download-artifact@v4
+              with:
+                  name: airlock.phar
+                  path: build
+
+            - name: Restore the static PHP runtime
+              id: runtime
+              uses: actions/cache@v4
+              with:
+                  path: buildroot/bin/micro.sfx
+                  key: micro-${{ matrix.target }}-php${{ env.PHP_VERSION }}-${{ env.PHP_EXTENSIONS }}
+
+            - name: Build the static PHP runtime
+              if: steps.runtime.outputs.cache-hit != 'true'
+              run: |
+                  curl -fsSL -o spc.tgz "https://github.com/crazywhalecc/static-php-cli/releases/latest/download/spc-${{ matrix.target }}.tar.gz"
+                  tar -xzf spc.tgz
+                  ./spc doctor --auto-fix
+                  ./spc download --with-php=${{ env.PHP_VERSION }} --for-extensions="${{ env.PHP_EXTENSIONS }}" --prefer-pre-built
+                  ./spc build "${{ env.PHP_EXTENSIONS }}" --build-micro
+
+            - name: Append the PHAR to the runtime
+              run: |
+                  cat buildroot/bin/micro.sfx build/airlock.phar > "airlock-${{ matrix.target }}"
+                  chmod +x "airlock-${{ matrix.target }}"
+
+            # Apple Silicon runs no unsigned code, and appending the PHAR voids the runtime's signature.
+            - name: Sign it ad hoc
+              if: runner.os == 'macOS'
+              run: codesign --force --sign - "airlock-${{ matrix.target }}"
+
+            # Ubuntu 24.04's AppArmor forbids unprivileged user namespaces, which bubblewrap needs.
+            - name: Install bubblewrap
+              if: runner.os == 'Linux'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y bubblewrap
+                  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+            - name: Run one command through the binary, as a client would
+              run: cd "$(mktemp -d)" && python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" -- "$GITHUB_WORKSPACE/airlock-${{ matrix.target }}" mcp:server
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: airlock-${{ matrix.target }}
+                  path: airlock-${{ matrix.target }}
+
+    release:
+        if: startsWith(github.ref, 'refs/tags/v')
+        needs: binary
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  pattern: airlock-*
+                  merge-multiple: true
+
+            - run: sha256sum airlock-* > SHA256SUMS
+
+            - name: Publish the release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh release create "$GITHUB_REF_NAME" airlock-* SHA256SUMS --repo "$GITHUB_REPOSITORY" --generate-notes
