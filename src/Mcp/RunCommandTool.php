@@ -52,6 +52,7 @@ final readonly class RunCommandTool
         private ApprovalForm $approvalForm,
         private Approvals $approvals,
         private CommandRunner $runner,
+        private OutputReport $outputReport,
         private AuditLog $auditLog,
         private ProjectDirectory $projectDirectory,
         private ClockInterface $clock,
@@ -133,13 +134,7 @@ final readonly class RunCommandTool
         $result = $run($command);
         $this->audit($command, $assessment, $outcome, $result);
 
-        if ($result->hasTimedOut) {
-            return CallToolResult::error([new TextContent("Stopped: the command ran past its time limit.\n\n".$result->output)]);
-        }
-
-        $content = [new TextContent(\sprintf("Exit code %d\n\n%s", $result->exitCode ?? -1, $result->output))];
-
-        return $result->isSuccessful() ? CallToolResult::success($content) : CallToolResult::error($content);
+        return $this->outputReport->result($result);
     }
 
     private function audit(string $command, Assessment $assessment, Outcome $outcome, ?CommandResult $result = null, ?string $detail = null): void
