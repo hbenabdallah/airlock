@@ -1,18 +1,44 @@
-# Airlock
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+    <img src="docs/brand/logo.svg" alt="Airlock" width="380">
+  </picture>
+</p>
 
-An MCP server that lets any agent run shell commands on your machine without trusting the agent with your machine.
-Claude Code connects to it like to any MCP server, and every command the agent sends passes through it:
+<p align="center">
+  <strong>Every agent command passes through it.</strong><br>
+  An MCP server that lets any agent run shell commands on your machine, without trusting the agent with your machine.
+</p>
 
-- **Read** the way a shell reads it: a grant for `make test` never covers `make test; rm -rf ~`.
-- **Weighed**: plain, *asked every time* (`sudo`, a recursive delete, `git push`, a download piped into a shell, a
-  secret file, anything that cannot be read whole), or refused by your policy.
-- **Asked** in your client, with the reason first: *once*, *this session*, *always for this project* or *refuse*.
-- **Run** in a sandbox: bubblewrap on Linux, `sandbox-exec` on macOS. It writes only to the project, `/tmp` and
-  package caches, and cannot read your keys or Airlock's own files.
-- **Checked**: the output goes back marked as data, with secrets masked, and a model flags it when it looks like a
-  prompt injection. Every decision is kept in an audit log, readable as the MCP resource `airlock://audit`.
+<p align="center">
+  <a href="https://github.com/hbenabdallah/airlock/actions/workflows/check.yaml"><img src="https://github.com/hbenabdallah/airlock/actions/workflows/check.yaml/badge.svg" alt="check"></a>
+  <img src="https://img.shields.io/badge/PHP-8.5-12161C?style=flat-square" alt="PHP 8.5">
+  <img src="https://img.shields.io/badge/Symfony-8.1-12161C?style=flat-square" alt="Symfony 8.1">
+  <img src="https://img.shields.io/badge/MCP-2026--07--28-12161C?style=flat-square" alt="MCP 2026-07-28">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-E8930C?style=flat-square" alt="MIT license"></a>
+</p>
 
-How and why: [docs/design.md](docs/design.md).
+<p align="center">
+  <a href="#quick-start-five-minutes">Quick start</a> ·
+  <a href="#try-the-demo">Demo</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="docs/design.md">Design</a>
+</p>
+
+## How it works
+
+Claude Code connects to Airlock like to any MCP server. Every command the agent sends goes through five steps:
+
+| | Step | What happens |
+|---|---|---|
+| 1 | **Read** | Parsed the way a shell reads it: a grant for `make test` never covers `make test; rm -rf ~`. |
+| 2 | **Weighed** | Plain; *asked every time* (`sudo`, a recursive delete, `git push`, a download piped into a shell, a secret file, anything that cannot be read whole); or refused by your policy. |
+| 3 | **Asked** | In your client, with the reason first: *once*, *this session*, *always for this project* or *refuse*. |
+| 4 | **Run** | In a sandbox, bubblewrap on Linux and `sandbox-exec` on macOS: it writes only to the project, `/tmp` and package caches, and cannot read your keys or Airlock's own files. |
+| 5 | **Checked** | The output goes back marked as data, with secrets masked, and a model flags it when it looks like a prompt injection. |
+
+Every decision is kept in an audit log, readable as the MCP resource `airlock://audit`. How and why:
+[docs/design.md](docs/design.md).
 
 ## Quick start: five minutes
 
