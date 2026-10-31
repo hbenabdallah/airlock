@@ -15,6 +15,8 @@ use App\Grant\Grants;
 use App\Grant\InvalidGrantsException;
 use App\Grant\ProjectGrants;
 use App\Grant\SessionGrants;
+use App\Output\InjectionClassifier;
+use App\Output\OutputCheck;
 use App\Policy\Assessment;
 use App\Policy\CommandPolicy;
 use App\Policy\InvalidPolicyException;
@@ -52,6 +54,7 @@ final readonly class RunCommandTool
         private ApprovalForm $approvalForm,
         private Approvals $approvals,
         private CommandRunner $runner,
+        private InjectionClassifier $injectionClassifier,
         private OutputReport $outputReport,
         private AuditLog $auditLog,
         private ProjectDirectory $projectDirectory,
@@ -132,12 +135,13 @@ final readonly class RunCommandTool
     private function run(string $command, Assessment $assessment, Outcome $outcome, \Closure $run): CallToolResult
     {
         $result = $run($command);
-        $this->audit($command, $assessment, $outcome, $result);
+        $check = $this->injectionClassifier->check($result->output);
+        $this->audit($command, $assessment, $outcome, $result, check: $check);
 
-        return $this->outputReport->result($result);
+        return $this->outputReport->result($result, $check);
     }
 
-    private function audit(string $command, Assessment $assessment, Outcome $outcome, ?CommandResult $result = null, ?string $detail = null): void
+    private function audit(string $command, Assessment $assessment, Outcome $outcome, ?CommandResult $result = null, ?string $detail = null, ?OutputCheck $check = null): void
     {
         $this->auditLog->append(new AuditEntry(
             $this->clock->now(),
@@ -149,6 +153,8 @@ final readonly class RunCommandTool
             $result?->exitCode,
             $result instanceof CommandResult && $result->hasTimedOut,
             $detail,
+            $check,
+            $result?->maskedSecrets,
         ));
     }
 }

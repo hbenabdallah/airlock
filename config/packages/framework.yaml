@@ -11,5 +11,8 @@ framework:
 when@test:
     framework:
         test: true
+        # The server the tests start never calls a model: recorded answers stand in for NVIDIA's API.
+        http_client:
+            mock_response_factory: App\Tests\Output\RecordedNvidiaApi
         session:
             storage_factory_id: session.storage.factory.mock_file
