@@ -34,9 +34,13 @@ final readonly class ConnectionOriginals
         $directory = \dirname($record);
         $this->filesystem->mkdir($directory, 0o700);
         $temporary = $this->filesystem->tempnam($directory, '.original-');
-        $this->filesystem->chmod($temporary, 0o600);
-        $this->filesystem->appendToFile($temporary, json_encode(['path' => $path, 'existed' => $exists, 'content' => $content], \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR));
-        $this->filesystem->rename($temporary, $record, true);
+        try {
+            $this->filesystem->chmod($temporary, 0o600);
+            $this->filesystem->appendToFile($temporary, json_encode(['path' => $path, 'existed' => $exists, 'content' => $content], \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR));
+            $this->filesystem->rename($temporary, $record, true);
+        } finally {
+            $this->filesystem->remove($temporary);
+        }
     }
 
     /**

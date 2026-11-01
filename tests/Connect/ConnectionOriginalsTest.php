@@ -7,6 +7,7 @@ namespace App\Tests\Connect;
 use App\Configuration\ConfigDirectory;
 use App\Connect\ConnectionOriginals;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
 final class ConnectionOriginalsTest extends TestCase
@@ -81,5 +82,21 @@ final class ConnectionOriginalsTest extends TestCase
         $this->originals->keep('/project/.mcp.json', true, '{"theme": "dark"}');
 
         self::assertSame('{"theme": "dark"}', $this->originals->of('/project/.mcp.json'));
+    }
+
+    public function testARecordThatCannotBeWrittenLeavesNoTemporaryFile(): void
+    {
+        $record = $this->originals->recordPath('/project/.mcp.json');
+        $this->filesystem->mkdir($record.'/in-the-way');
+
+        try {
+            $this->originals->keep('/project/.mcp.json', true, '{}');
+            self::fail('A record cannot be renamed over a directory.');
+        } catch (IOException) {
+        }
+
+        $entries = scandir(\dirname($record));
+        self::assertIsArray($entries);
+        self::assertSame([basename($record)], array_values(array_diff($entries, ['.', '..'])), 'The temporary record is removed when the rename fails.');
     }
 }
