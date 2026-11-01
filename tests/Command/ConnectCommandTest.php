@@ -129,6 +129,20 @@ final class ConnectCommandTest extends KernelTestCase
         self::assertNotNull(RecordedResponses::at($this->json(self::HOME.'/.claude.json'), 'mcpServers', 'airlock'));
     }
 
+    public function testOnlyAFileAirlockChangesIsKept(): void
+    {
+        $this->tester()->execute(['client' => 'claude-code']);
+        $this->filesystem->remove(self::HOME.'/.config/airlock/originals');
+        $this->filesystem->dumpFile(self::PROJECT.'/.claude/settings.local.json', '{"permissions": {"deny": ["Bash"]}}');
+
+        $this->tester()->execute(['client' => 'claude-code']);
+
+        self::assertSame([], glob(self::HOME.'/.config/airlock/originals/.mcp.json-*.json'), '.mcp.json already held Airlock\'s server: there is no original of it to keep.');
+        $kept = glob(self::HOME.'/.config/airlock/originals/settings.local.json-*.json');
+        self::assertIsArray($kept);
+        self::assertCount(1, $kept);
+    }
+
     public function testCodexIsConfiguredWhereCodexHomeSays(): void
     {
         $_SERVER['CODEX_HOME'] = $_ENV['CODEX_HOME'] = self::ROOT.'/codex';

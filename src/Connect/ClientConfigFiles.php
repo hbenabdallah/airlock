@@ -47,10 +47,10 @@ final readonly class ClientConfigFiles
 
     public function write(PlannedFile $file, Direction $direction): void
     {
-        if (Direction::Connect === $direction) {
-            $this->originals->keep($file->path, $file->exists, $file->before);
-        }
         if ($file->isChanged()) {
+            if (Direction::Connect === $direction) {
+                $this->originals->keep($file->path, $file->exists, $file->before);
+            }
             $this->filesystem->dumpFile($file->path, $file->after);
         }
         if (Direction::Disconnect === $direction) {
