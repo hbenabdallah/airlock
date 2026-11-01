@@ -155,6 +155,17 @@ final class ConnectCommandTest extends KernelTestCase
         self::assertFileDoesNotExist(self::ROOT.'/codex/config.toml');
     }
 
+    public function testARemovalWithNothingToChangeStillEndsTheConnection(): void
+    {
+        $this->tester()->execute(['client' => 'claude-code']);
+        $this->filesystem->remove([self::PROJECT.'/.mcp.json', self::PROJECT.'/.claude/settings.local.json']);
+
+        $status = $this->tester()->execute(['client' => 'claude-code', '--remove' => true]);
+
+        self::assertSame(Command::SUCCESS, $status);
+        self::assertSame([], glob(self::HOME.'/.config/airlock/originals/*.json'), 'A later connection starts from the files as they are then, not from these originals.');
+    }
+
     public function testCodexIsConfiguredWhereCodexHomeSays(): void
     {
         $_SERVER['CODEX_HOME'] = $_ENV['CODEX_HOME'] = self::ROOT.'/codex';
