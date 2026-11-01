@@ -145,7 +145,7 @@ final class ConnectCommand extends Command
     {
         $pending = array_values(array_filter($planned, static fn (PlannedFile $file): bool => $file->isChanged()));
         if ([] === $pending) {
-            if (Direction::Disconnect === $direction) {
+            if (Direction::Disconnect === $direction && true !== $input->getOption('dry-run')) {
                 $this->files->writeAll($planned, $direction);
             }
             $io->success(\sprintf('Airlock is already %s %s: nothing to change.', $this->state($direction), $client->label()));

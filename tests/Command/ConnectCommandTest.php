@@ -166,6 +166,16 @@ final class ConnectCommandTest extends KernelTestCase
         self::assertSame([], glob(self::HOME.'/.config/airlock/originals/*.json'), 'A later connection starts from the files as they are then, not from these originals.');
     }
 
+    public function testADryRunRemovalKeepsTheOriginals(): void
+    {
+        $this->tester()->execute(['client' => 'claude-code']);
+        $this->filesystem->remove([self::PROJECT.'/.mcp.json', self::PROJECT.'/.claude/settings.local.json']);
+
+        $this->tester()->execute(['client' => 'claude-code', '--remove' => true, '--dry-run' => true]);
+
+        self::assertNotSame([], glob(self::HOME.'/.config/airlock/originals/*.json'), 'A dry run writes nothing, records included.');
+    }
+
     public function testCodexIsConfiguredWhereCodexHomeSays(): void
     {
         $_SERVER['CODEX_HOME'] = $_ENV['CODEX_HOME'] = self::ROOT.'/codex';
