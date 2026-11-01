@@ -145,8 +145,8 @@ final class ConnectCommand extends Command
     {
         $pending = array_values(array_filter($planned, static fn (PlannedFile $file): bool => $file->isChanged()));
         if ([] === $pending) {
-            if (Direction::Disconnect === $direction && true !== $input->getOption('dry-run')) {
-                $this->files->writeAll($planned, $direction);
+            if (Direction::Disconnect === $direction && true !== $input->getOption('dry-run') && !$this->wroteAll($io, $planned, $direction)) {
+                return Command::FAILURE;
             }
             $io->success(\sprintf('Airlock is already %s %s: nothing to change.', $this->state($direction), $client->label()));
 
@@ -165,11 +165,7 @@ final class ConnectCommand extends Command
             return Command::FAILURE;
         }
 
-        try {
-            $this->files->writeAll($planned, $direction);
-        } catch (ConfigChangedException $e) {
-            $io->error(\sprintf('%s: nothing was written. Run this command again to see the changes on the file as it is now.', $e->getMessage()));
-
+        if (!$this->wroteAll($io, $planned, $direction)) {
             return Command::FAILURE;
         }
         $io->success(\sprintf('Airlock is %s %s. Restart %s so that it reads its new configuration.', $this->state($direction), $client->label(), $client->label()));
@@ -179,6 +175,22 @@ final class ConnectCommand extends Command
         $this->warnAboutWhatWasLeft($io, $planned);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<PlannedFile> $planned
+     */
+    private function wroteAll(SymfonyStyle $io, array $planned, Direction $direction): bool
+    {
+        try {
+            $this->files->writeAll($planned, $direction);
+        } catch (ConfigChangedException $e) {
+            $io->error(\sprintf('%s: nothing was written. Run this command again to see the changes on the file as it is now.', $e->getMessage()));
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
