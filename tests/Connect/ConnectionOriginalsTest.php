@@ -72,6 +72,9 @@ final class ConnectionOriginalsTest extends TestCase
         $record = $this->originals->recordPath('/project/.mcp.json');
         $this->filesystem->dumpFile($record, '{"path": "/project/.mcp.json", "existed": true, "content": "stale"}');
         $this->filesystem->chmod($record, 0o000);
+        if (is_readable($record)) {
+            self::markTestSkipped('This user reads files whatever their mode, root for one: no record can be made unreadable to it.');
+        }
 
         self::assertNull($this->originals->of('/project/.mcp.json'));
 
