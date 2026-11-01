@@ -111,6 +111,14 @@ jobs:
                   AIRLOCK_OUTPUT_CHECK_MODEL: smoke/model
               run: cd "$(mktemp -d)" && python3 "$GITHUB_WORKSPACE/.github/scripts/smoke.py" --expect "the model could not be reached" -- "$GITHUB_WORKSPACE/airlock-${{ matrix.target }}" mcp:server
 
+            # airlock connect writes the command a client will run: the binary itself, not PHP.
+            - name: Point a client at the binary
+              run: |
+                  export HOME="$(mktemp -d)"
+                  binary="$GITHUB_WORKSPACE/airlock-${{ matrix.target }}"
+                  cd "$(mktemp -d)" && "$binary" connect codex --no-interaction
+                  grep -Fx "command = \"$binary\"" "$HOME/.codex/config.toml"
+
             - uses: actions/upload-artifact@v4
               with:
                   name: airlock-${{ matrix.target }}

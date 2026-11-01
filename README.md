@@ -148,50 +148,43 @@ Airlock is a stdio MCP server: the client starts the server command and talks to
 a client that supports **elicitation** (the forms MCP clients show for a server's questions), in protocol 2026-07-28 or
 2025-11-25: without it, Airlock cannot ask, so nothing it would ask about can run.
 
-Airlock runs commands in the directory the client starts it from. Clients that do not start servers in the project
-need `AIRLOCK_PROJECT_DIR` set to it.
-
-Most clients take an `mcpServers` entry like this one (here, the binary):
-
-```json
-{
-  "mcpServers": {
-    "airlock": {
-      "command": "/home/you/.local/bin/airlock",
-      "args": ["mcp:server"],
-      "env": { "AIRLOCK_PROJECT_DIR": "/path/to/project" }
-    }
-  }
-}
-```
-
-**Claude Code**: from the project (it starts servers there, so `AIRLOCK_PROJECT_DIR` is not needed):
+From the project, connect your client (natively, `php ~/airlock/bin/console connect <client>`):
 
 ```bash
-claude mcp add airlock -- ~/.local/bin/airlock mcp:server
+airlock connect claude-code
 ```
 
-**Cursor**: the `mcpServers` entry above, in `.cursor/mcp.json` in the project.
+It adds Airlock's server to the client's configuration and, where a file can do it, turns off the client's own shell
+tool: Airlock only sees the commands that go through it, so an agent that keeps its own shell can run anything
+without Airlock.
 
-**VS Code**: in `.vscode/mcp.json` in the project, where `${workspaceFolder}` stands for the project:
+| Client | Name | Files it changes | The client's own shell |
+|---|---|---|---|
+| Claude Code | `claude-code` | `.mcp.json`, `.claude/settings.local.json`; with `--scope user`, `~/.claude.json`, `~/.claude/settings.json` | Denied: `Bash` and `Monitor` |
+| Codex | `codex` | `~/.codex/config.toml`, or in `$CODEX_HOME` | Off: `shell_tool = false` |
+| Cursor | `cursor` | `.cursor/mcp.json` | Turn its terminal tool off in Cursor's agent settings |
+| VS Code | `vscode` | `.vscode/mcp.json` | Turn its terminal tool off in the chat's tool picker |
+| Goose | `goose` | `~/.config/goose/config.yaml` | The developer extension keeps `write`, `edit` and `tree` |
 
-```json
-{
-  "servers": {
-    "airlock": {
-      "type": "stdio",
-      "command": "/home/you/.local/bin/airlock",
-      "args": ["mcp:server"],
-      "env": { "AIRLOCK_PROJECT_DIR": "${workspaceFolder}" }
-    }
-  }
-}
-```
+- It shows every change and asks before writing. The first time it changes a file, it keeps the file as it was in
+  `~/.config/airlock/originals/`, readable by you only: some of these files hold the client's credentials.
+- `--dry-run` shows the changes and writes nothing; `--check` says whether Airlock is connected; `--remove` takes back
+  what connecting added and puts back what you had, such as a tool you had denied yourself.
+- A file it cannot edit without risk (JSON with comments, a TOML table written as dotted keys) is left as it is: it
+  says what to change by hand.
+- The project files hold this machine's paths: keep them out of version control.
 
-**Any other client**: its MCP settings, with the same command, arguments and `AIRLOCK_PROJECT_DIR`.
+**Any other client**: `airlock connect`, with no client, prints the `mcpServers` entry most clients take. Add it to
+the client's MCP settings, with `AIRLOCK_PROJECT_DIR` set to the project when the client does not start servers there,
+and turn off the client's own shell tool. A client without elicitation cannot show Airlock's questions: Zed, for one,
+does not support it yet.
 
-Tested end to end: Claude Code. The other entries follow each client's documented format and have not been run with
-Airlock yet: tell us how they behave.
+**With Docker**: `airlock connect` writes the paths of the machine it runs on, which inside a container are not
+yours. Add the `mcpServers` entry by hand, with `docker` as the command and the rest of the server command, one word
+per item, as its arguments.
+
+Tested end to end: Claude Code. The other clients follow their documented formats and have not been run with Airlock
+yet: tell us how they behave.
 
 ### Optional: the model checks
 

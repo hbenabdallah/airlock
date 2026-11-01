@@ -90,4 +90,4 @@ esac
 if [ "$(uname -s)" = Linux ] && ! command -v bwrap > /dev/null 2>&1; then
     printf 'Install bubblewrap too, or Airlock runs commands without a sandbox and asks about each one.\n'
 fi
-printf 'Then point your MCP client at the server command: %s mcp:server (README: Connect your MCP client)\n' "$install_dir/airlock"
+printf 'Then, from your project, connect your MCP client: %s connect claude-code (or codex, cursor, vscode, goose)\n' "$install_dir/airlock"

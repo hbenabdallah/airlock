@@ -57,6 +57,17 @@ The state that rides along with the retry comes back from the client, so it is
 attacker-controlled: Airlock signs it, and it names the exact command it was
 minted for, so an answer for `make test` cannot be replayed to run anything else.
 
+Airlock sees only the commands that come through `run_command`: an agent that
+keeps its client's own shell tool can run anything without it, and no MCP
+message can take that tool away. `airlock connect` does it from the client's
+files where the client allows it (Claude Code's deny rules, Codex's
+`shell_tool` feature, Goose's tool filter), and says what to do by hand where
+no file can (Cursor, VS Code). It edits those files in place and keeps what
+else they hold: a JSON file with comments, or a TOML table written as dotted
+keys, is left to the user rather than rewritten. It keeps each file as it was
+before it first changed it, in its own directory, and `--remove` reads that
+to put back a setting the user had rather than delete it.
+
 Sampling, which once let a server borrow the client's model, is deprecated since
 2026-07-28 in favour of calling a provider directly — which is what Airlock does
 through Symfony AI.
