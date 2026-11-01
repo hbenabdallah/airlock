@@ -66,4 +66,17 @@ final class ConnectionOriginalsTest extends TestCase
 
         self::assertSame('{"theme": "dark"}', $this->originals->of('/project/.mcp.json'));
     }
+
+    public function testARecordThatCannotBeReadIsReplacedByTheOriginal(): void
+    {
+        $record = $this->originals->recordPath('/project/.mcp.json');
+        $this->filesystem->dumpFile($record, '{"path": "/project/.mcp.json", "existed": true, "content": "stale"}');
+        $this->filesystem->chmod($record, 0o000);
+
+        self::assertNull($this->originals->of('/project/.mcp.json'));
+
+        $this->originals->keep('/project/.mcp.json', true, '{"theme": "dark"}');
+
+        self::assertSame('{"theme": "dark"}', $this->originals->of('/project/.mcp.json'));
+    }
 }

@@ -40,17 +40,21 @@ final readonly class ConnectionOriginals
     }
 
     /**
-     * The file as it was, '' when it did not exist, null when Airlock has no record of it.
+     * The file as it was, '' when it did not exist, null when Airlock has no record of it it can read.
      */
     public function of(string $path): ?string
     {
         $record = $this->recordPath($path);
-        if (!is_file($record)) {
+        if (!is_file($record) || !is_readable($record)) {
+            return null;
+        }
+        $content = file_get_contents($record);
+        if (false === $content) {
             return null;
         }
 
         try {
-            $kept = json_decode((string) file_get_contents($record), true, 512, \JSON_THROW_ON_ERROR);
+            $kept = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return null;
         }
