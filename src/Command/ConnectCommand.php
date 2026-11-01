@@ -161,15 +161,28 @@ final class ConnectCommand extends Command
             return Command::FAILURE;
         }
 
-        foreach ($pending as $file) {
-            $this->files->write($file);
+        foreach ($planned as $file) {
+            $this->files->write($file, $direction);
         }
         $io->success(\sprintf('Airlock is %s %s. Restart %s so that it reads its new configuration.', $this->state($direction), $client->label(), $client->label()));
         if (Direction::Connect === $direction && [] !== $notes) {
             $io->note($notes);
         }
+        $this->warnAboutWhatWasLeft($io, $planned);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<PlannedFile> $planned
+     */
+    private function warnAboutWhatWasLeft(SymfonyStyle $io, array $planned): void
+    {
+        foreach ($planned as $file) {
+            if ([] !== $file->left) {
+                $io->warning(\sprintf('Airlock has no record of %s before it connected, so it left %s as they are: change them by hand if they were not yours.', $file->path, implode(', ', $file->left)));
+            }
+        }
     }
 
     /**

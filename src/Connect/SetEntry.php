@@ -31,12 +31,18 @@ final readonly class SetEntry implements ConfigChange
     }
 
     #[\Override]
-    public function disconnect(\stdClass $root): void
+    public function disconnect(\stdClass $root, ?\stdClass $original): void
     {
         $parent = $this->path->existingParent($root);
         if ($parent instanceof \stdClass) {
             unset($parent->{$this->path->key()});
         }
+    }
+
+    #[\Override]
+    public function isShared(): bool
+    {
+        return false;
     }
 
     #[\Override]

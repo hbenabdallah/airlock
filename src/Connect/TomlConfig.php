@@ -5,45 +5,78 @@ declare(strict_types=1);
 namespace App\Connect;
 
 /**
- * A TOML file, edited in place: a whole table for Airlock's own entry, one key for a setting in a shared table.
+ * A TOML file, edited in place: a whole table for Airlock's own entry, one key for a setting in a shared table, put
+ * back from the original when disconnecting.
  */
 final readonly class TomlConfig implements ConfigSyntax
 {
     #[\Override]
-    public function edit(string $content, array $changes, Direction $direction): string
+    public function connect(string $content, array $changes): string
     {
         $document = TomlDocument::parse($content);
         foreach ($changes as $change) {
-            $this->apply($document, $change, $direction);
+            if ($change instanceof SetEntry && $change->value instanceof ConfigTable) {
+                $name = $this->tableName($change);
+                $document->assertTablesOnly($name);
+                $document->replaceTable($name, $this->table($name, $change->value));
+                continue;
+            }
+            [$table, $key] = $this->keyIn($change);
+            $document->assertTablesOnly($table);
+            $document->setKey($table, $key, $this->name($key).' = '.$this->value($change->value));
         }
 
         return $document->render();
     }
 
-    private function apply(TomlDocument $document, ConfigChange $change, Direction $direction): void
+    #[\Override]
+    public function disconnect(string $content, array $changes, ?string $original): string
+    {
+        $document = TomlDocument::parse($content);
+        $originalDocument = null === $original ? null : TomlDocument::parse($original);
+        foreach ($changes as $change) {
+            if ($change instanceof SetEntry && $change->value instanceof ConfigTable) {
+                $document->removeTable($this->tableName($change));
+                continue;
+            }
+            [$table, $key] = $this->keyIn($change);
+            if (!$originalDocument instanceof TomlDocument) {
+                continue;
+            }
+            $originalLine = $originalDocument->keyLine($table, $key);
+            if (null === $originalLine) {
+                $document->removeKey($table, $key);
+            } else {
+                $document->setKey($table, $key, $originalLine);
+            }
+        }
+
+        return $document->render();
+    }
+
+    private function tableName(SetEntry $change): string
     {
         $keys = $change->path()->keys;
-        if (!$change instanceof SetEntry || 2 !== \count($keys)) {
-            throw new \LogicException(\sprintf('TOML files take only a table or a key in a table, not %s.', $change->describe($direction)));
+        if (2 !== \count($keys)) {
+            throw new \LogicException(\sprintf('A TOML table is named by two keys, not %s.', $change->path()->dotted()));
         }
 
-        [$table, $key] = $keys;
-        if ($change->value instanceof ConfigTable) {
-            $name = $this->name($table).'.'.$this->name($key);
-            $document->assertTablesOnly($name);
-            match ($direction) {
-                Direction::Connect => $document->replaceTable($name, $this->table($name, $change->value)),
-                Direction::Disconnect => $document->removeTable($name),
-            };
+        return $this->name($keys[0]).'.'.$this->name($keys[1]);
+    }
 
-            return;
+    /**
+     * @phpstan-assert SetShared $change
+     *
+     * @return array{string, string}
+     */
+    private function keyIn(ConfigChange $change): array
+    {
+        $keys = $change->path()->keys;
+        if (!$change instanceof SetShared || 2 !== \count($keys)) {
+            throw new \LogicException(\sprintf('TOML files take a table of Airlock\'s or a shared key in a table, not %s.', $change->path()->dotted()));
         }
 
-        $document->assertTablesOnly($table);
-        match ($direction) {
-            Direction::Connect => $document->setKey($table, $key, $this->name($key).' = '.$this->value($change->value)),
-            Direction::Disconnect => $document->removeKey($table, $key),
-        };
+        return [$keys[0], $keys[1]];
     }
 
     /**

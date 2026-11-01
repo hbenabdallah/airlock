@@ -5,20 +5,44 @@ declare(strict_types=1);
 namespace App\Connect;
 
 /**
- * The edit shared by every file read as a tree of tables, JSON and YAML.
+ * A file read as a tree of tables, JSON or YAML: decoded, changed, and encoded again only when something changed.
  */
-final class ConfigTree
+abstract readonly class ConfigTree implements ConfigSyntax
 {
-    /**
-     * @param non-empty-list<ConfigChange> $changes
-     */
-    public static function edit(\stdClass $root, array $changes, Direction $direction): void
+    #[\Override]
+    public function connect(string $content, array $changes): string
     {
+        $root = $this->decode($content);
         foreach ($changes as $change) {
-            match ($direction) {
-                Direction::Connect => $change->connect($root),
-                Direction::Disconnect => $change->disconnect($root),
-            };
+            $change->connect($root);
         }
+
+        return $this->encoded($content, $root);
+    }
+
+    #[\Override]
+    public function disconnect(string $content, array $changes, ?string $original): string
+    {
+        $root = $this->decode($content);
+        $originalRoot = null === $original ? null : $this->decode($original);
+        foreach ($changes as $change) {
+            $change->disconnect($root, $originalRoot);
+        }
+
+        return $this->encoded($content, $root);
+    }
+
+    /**
+     * @throws UnsupportedConfigException
+     */
+    abstract protected function decode(string $content): \stdClass;
+
+    abstract protected function encode(\stdClass $root): string;
+
+    private function encoded(string $content, \stdClass $root): string
+    {
+        $after = $this->encode($root);
+
+        return $after === $this->encode($this->decode($content)) ? $content : $after;
     }
 }

@@ -7,19 +7,10 @@ namespace App\Connect;
 /**
  * A plain JSON file. A file with comments or trailing commas is left to the user: decoding it would drop them.
  */
-final readonly class JsonConfig implements ConfigSyntax
+final readonly class JsonConfig extends ConfigTree
 {
     #[\Override]
-    public function edit(string $content, array $changes, Direction $direction): string
-    {
-        $before = $this->decode($content);
-        $after = $this->decode($content);
-        ConfigTree::edit($after, $changes, $direction);
-
-        return $this->encode($after) === $this->encode($before) ? $content : $this->encode($after);
-    }
-
-    private function decode(string $content): \stdClass
+    protected function decode(string $content): \stdClass
     {
         if ('' === trim($content)) {
             return new \stdClass();
@@ -37,7 +28,8 @@ final readonly class JsonConfig implements ConfigSyntax
         return $root;
     }
 
-    private function encode(\stdClass $root): string
+    #[\Override]
+    protected function encode(\stdClass $root): string
     {
         return json_encode($root, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_PRESERVE_ZERO_FRACTION | \JSON_THROW_ON_ERROR)."\n";
     }

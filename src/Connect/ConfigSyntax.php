@@ -15,5 +15,14 @@ interface ConfigSyntax
      *
      * @throws UnsupportedConfigException when the file cannot be edited without risking what else it holds
      */
-    public function edit(string $content, array $changes, Direction $direction): string;
+    public function connect(string $content, array $changes): string;
+
+    /**
+     * @param non-empty-list<ConfigChange> $changes
+     * @param string|null                  $original the file as it was before Airlock first changed it, '' when it did
+     *                                               not exist, null when unknown
+     *
+     * @throws UnsupportedConfigException when the file cannot be edited without risking what else it holds
+     */
+    public function disconnect(string $content, array $changes, ?string $original): string;
 }

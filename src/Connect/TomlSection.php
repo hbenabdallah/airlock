@@ -72,6 +72,43 @@ final class TomlSection
         $this->lines = $kept;
     }
 
+    public function keyLine(string $key): ?string
+    {
+        foreach ($this->lines as $number => $line) {
+            if ($number > 0 && $this->definesKey($line, $key)) {
+                return $line;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The blank and comment lines at its end: they sit above the next table, and belong with it.
+     *
+     * @return list<string>
+     */
+    public function trailingLines(): array
+    {
+        $trailing = [];
+        for ($number = \count($this->lines) - 1; $number > 0; --$number) {
+            if (1 !== preg_match('/^\s*(#.*)?$/', $this->lines[$number])) {
+                break;
+            }
+            array_unshift($trailing, $this->lines[$number]);
+        }
+
+        return $trailing;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    public function addAll(array $lines): void
+    {
+        array_push($this->lines, ...$lines);
+    }
+
     public function definesKey(string $line, string $key): bool
     {
         return 1 === preg_match('/^\s*["\']?'.preg_quote($key, '/').'["\']?\s*[.=]/', $line);

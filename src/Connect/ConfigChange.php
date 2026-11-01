@@ -17,9 +17,16 @@ interface ConfigChange
     public function connect(\stdClass $root): void;
 
     /**
+     * @param \stdClass|null $original the file as it was before Airlock first changed it, null when unknown
+     *
      * @throws UnsupportedConfigException
      */
-    public function disconnect(\stdClass $root): void;
+    public function disconnect(\stdClass $root, ?\stdClass $original): void;
+
+    /**
+     * Whether the setting may be the user's too, such as a denied tool: taken back only as far as the original says.
+     */
+    public function isShared(): bool;
 
     public function describe(Direction $direction): string;
 }

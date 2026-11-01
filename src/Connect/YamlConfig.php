@@ -10,19 +10,10 @@ use Symfony\Component\Yaml\Yaml;
 /**
  * A YAML file. Rewriting it drops its comments, which is why Airlock keeps a copy of the file before it writes.
  */
-final readonly class YamlConfig implements ConfigSyntax
+final readonly class YamlConfig extends ConfigTree
 {
     #[\Override]
-    public function edit(string $content, array $changes, Direction $direction): string
-    {
-        $before = $this->decode($content);
-        $after = $this->decode($content);
-        ConfigTree::edit($after, $changes, $direction);
-
-        return $this->encode($after) === $this->encode($before) ? $content : $this->encode($after);
-    }
-
-    private function decode(string $content): \stdClass
+    protected function decode(string $content): \stdClass
     {
         if ('' === trim($content)) {
             return new \stdClass();
@@ -40,7 +31,8 @@ final readonly class YamlConfig implements ConfigSyntax
         return $root;
     }
 
-    private function encode(\stdClass $root): string
+    #[\Override]
+    protected function encode(\stdClass $root): string
     {
         return Yaml::dump($root, 10, 2, Yaml::DUMP_OBJECT_AS_MAP | Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE);
     }

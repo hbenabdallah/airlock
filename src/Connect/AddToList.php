@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Connect;
 
 /**
- * One item in a list the user may share with other tools, such as a client's denied tools: added once, and only that
- * item taken back.
+ * One item in a list the user may share with other tools, such as a client's denied tools: added once, and taken back
+ * only when the original did not have it.
  */
 final readonly class AddToList implements ConfigChange
 {
@@ -35,11 +35,11 @@ final readonly class AddToList implements ConfigChange
     }
 
     #[\Override]
-    public function disconnect(\stdClass $root): void
+    public function disconnect(\stdClass $root, ?\stdClass $original): void
     {
         $parent = $this->path->existingParent($root);
         $key = $this->path->key();
-        if (!$parent instanceof \stdClass || !property_exists($parent, $key)) {
+        if (!$original instanceof \stdClass || !$parent instanceof \stdClass || !property_exists($parent, $key) || $this->wasThere($original)) {
             return;
         }
 
@@ -47,12 +47,26 @@ final readonly class AddToList implements ConfigChange
     }
 
     #[\Override]
+    public function isShared(): bool
+    {
+        return true;
+    }
+
+    #[\Override]
     public function describe(Direction $direction): string
     {
         return match ($direction) {
             Direction::Connect => \sprintf('adds "%s" to %s', $this->item, $this->path->dotted()),
-            Direction::Disconnect => \sprintf('removes "%s" from %s', $this->item, $this->path->dotted()),
+            Direction::Disconnect => \sprintf('removes "%s" from %s, unless it was there before', $this->item, $this->path->dotted()),
         };
+    }
+
+    private function wasThere(\stdClass $original): bool
+    {
+        $parent = $this->path->existingParent($original);
+        $key = $this->path->key();
+
+        return $parent instanceof \stdClass && property_exists($parent, $key) && \in_array($this->item, $this->items($parent->{$key}), true);
     }
 
     /**

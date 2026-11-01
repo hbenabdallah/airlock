@@ -6,7 +6,6 @@ namespace App\Tests\Connect;
 
 use App\Connect\ConfigPath;
 use App\Connect\ConfigTable;
-use App\Connect\Direction;
 use App\Connect\SetEntry;
 use App\Connect\SetInExisting;
 use App\Connect\UnsupportedConfigException;
@@ -28,7 +27,7 @@ final class YamlConfigTest extends TestCase
 
     public function testTheExtensionIsAddedAndTheExistingOneRestricted(): void
     {
-        $content = new YamlConfig()->edit(self::WITH_DEVELOPER, $this->changes(), Direction::Connect);
+        $content = new YamlConfig()->connect(self::WITH_DEVELOPER, $this->changes());
 
         self::assertSame([
             'GOOSE_MODE' => 'approve',
@@ -41,7 +40,7 @@ final class YamlConfigTest extends TestCase
 
     public function testAnExtensionTheUserDoesNotHaveIsNotCreated(): void
     {
-        $content = new YamlConfig()->edit("GOOSE_MODE: approve\n", $this->changes(), Direction::Connect);
+        $content = new YamlConfig()->connect("GOOSE_MODE: approve\n", $this->changes());
 
         self::assertSame([
             'GOOSE_MODE' => 'approve',
@@ -51,25 +50,35 @@ final class YamlConfigTest extends TestCase
 
     public function testDisconnectingRemovesTheExtensionAndTheRestriction(): void
     {
-        $connected = new YamlConfig()->edit(self::WITH_DEVELOPER, $this->changes(), Direction::Connect);
+        $connected = new YamlConfig()->connect(self::WITH_DEVELOPER, $this->changes());
 
-        $content = new YamlConfig()->edit($connected, $this->changes(), Direction::Disconnect);
+        $content = new YamlConfig()->disconnect($connected, $this->changes(), self::WITH_DEVELOPER);
 
         self::assertSame(Yaml::parse(self::WITH_DEVELOPER), Yaml::parse($content));
     }
 
+    public function testToolsTheUserHadChosenComeBack(): void
+    {
+        $original = self::WITH_DEVELOPER."\n    available_tools: [shell, tree]\n";
+        $connected = new YamlConfig()->connect($original, $this->changes());
+
+        $content = new YamlConfig()->disconnect($connected, $this->changes(), $original);
+
+        self::assertSame(Yaml::parse($original), Yaml::parse($content));
+    }
+
     public function testConnectingTwiceChangesNothingTheSecondTime(): void
     {
-        $once = new YamlConfig()->edit(self::WITH_DEVELOPER, $this->changes(), Direction::Connect);
+        $once = new YamlConfig()->connect(self::WITH_DEVELOPER, $this->changes());
 
-        self::assertSame($once, new YamlConfig()->edit($once, $this->changes(), Direction::Connect));
+        self::assertSame($once, new YamlConfig()->connect($once, $this->changes()));
     }
 
     public function testInvalidYamlIsRefused(): void
     {
         $this->expectException(UnsupportedConfigException::class);
 
-        new YamlConfig()->edit("extensions: [\n", $this->changes(), Direction::Connect);
+        new YamlConfig()->connect("extensions: [\n", $this->changes());
     }
 
     /**

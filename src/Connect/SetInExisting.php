@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Connect;
 
 /**
- * A setting on something the user configured, such as a client's own extension: left alone when that is not there.
+ * A setting on something the user configured, such as a client's own extension: left alone when that is not there,
+ * put back as it was when disconnecting.
  */
 final readonly class SetInExisting implements ConfigChange
 {
@@ -34,12 +35,15 @@ final readonly class SetInExisting implements ConfigChange
     }
 
     #[\Override]
-    public function disconnect(\stdClass $root): void
+    public function disconnect(\stdClass $root, ?\stdClass $original): void
     {
-        $parent = $this->path->existingParent($root);
-        if ($parent instanceof \stdClass) {
-            unset($parent->{$this->path->key()});
-        }
+        SharedValue::restore($this->path, $root, $original);
+    }
+
+    #[\Override]
+    public function isShared(): bool
+    {
+        return true;
     }
 
     #[\Override]
@@ -47,7 +51,7 @@ final readonly class SetInExisting implements ConfigChange
     {
         return match ($direction) {
             Direction::Connect => \sprintf('sets %s, where it is configured', $this->path->dotted()),
-            Direction::Disconnect => \sprintf('removes %s', $this->path->dotted()),
+            Direction::Disconnect => \sprintf('puts %s back as it was', $this->path->dotted()),
         };
     }
 }

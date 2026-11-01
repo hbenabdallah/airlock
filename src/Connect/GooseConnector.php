@@ -46,6 +46,6 @@ final readonly class GooseConnector implements ClientConnector
     #[\Override]
     public function notes(Scope $scope): array
     {
-        return ['Airlock writes config.yaml back without its comments: config.yaml.airlock-backup is the file as it was before Airlock first changed it.'];
+        return ['Airlock writes config.yaml back without its comments; the file as it was before Airlock first changed it is kept in Airlock\'s directory, under originals/.'];
     }
 }

@@ -37,7 +37,7 @@ final readonly class CodexConnector implements ClientConnector
 
         return [new FileEdit($home.'/config.toml', ConfigFormat::Toml, [
             new SetEntry(ConfigPath::of('mcp_servers', 'airlock'), $server),
-            new SetEntry(ConfigPath::of('features', 'shell_tool'), false),
+            new SetShared(ConfigPath::of('features', 'shell_tool'), false),
         ])];
     }
 

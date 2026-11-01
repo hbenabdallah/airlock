@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Tests\Command;
 
 use App\Connect\Client;
-use App\Connect\ClientConfigFiles;
 use App\Connect\ClientConnectors;
 use App\Tests\Output\RecordedResponses;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -42,6 +41,7 @@ final class ConnectCommandTest extends KernelTestCase
         $this->environment = $_ENV;
         $_SERVER['HOME'] = $_ENV['HOME'] = self::HOME;
         $_SERVER['AIRLOCK_PROJECT_DIR'] = $_ENV['AIRLOCK_PROJECT_DIR'] = self::PROJECT;
+        $_SERVER['XDG_CONFIG_HOME'] = $_ENV['XDG_CONFIG_HOME'] = self::HOME.'/.config';
         unset($_SERVER['CODEX_HOME'], $_ENV['CODEX_HOME']);
     }
 
@@ -79,14 +79,27 @@ final class ConnectCommandTest extends KernelTestCase
 
     public function testRemovingTakesBackOnlyWhatConnectingAdded(): void
     {
-        $this->filesystem->dumpFile(self::PROJECT.'/.claude/settings.local.json', '{"permissions": {"deny": ["WebFetch"]}}');
+        $this->filesystem->dumpFile(self::PROJECT.'/.claude/settings.local.json', '{"permissions": {"deny": ["WebFetch", "Bash"]}}');
         $this->tester()->execute(['client' => 'claude-code']);
 
         $status = $this->tester()->execute(['client' => 'claude-code', '--remove' => true]);
 
         self::assertSame(Command::SUCCESS, $status);
-        self::assertSame(['deny' => ['WebFetch'], 'allow' => []], $this->json(self::PROJECT.'/.claude/settings.local.json')['permissions'] ?? null);
+        self::assertSame(['deny' => ['WebFetch', 'Bash'], 'allow' => []], $this->json(self::PROJECT.'/.claude/settings.local.json')['permissions'] ?? null, 'Bash was denied before Airlock: it stays denied.');
         self::assertSame(['mcpServers' => []], $this->json(self::PROJECT.'/.mcp.json'));
+    }
+
+    public function testWithoutARecordOfTheOriginalSharedSettingsAreLeftAndSaidSo(): void
+    {
+        $this->tester()->execute(['client' => 'claude-code']);
+        $this->filesystem->remove(self::HOME.'/.config/airlock/originals');
+        $tester = $this->tester();
+
+        $tester->execute(['client' => 'claude-code', '--remove' => true]);
+
+        self::assertSame(['deny' => ['Bash', 'Monitor'], 'allow' => ['mcp__airlock__*']], $this->json(self::PROJECT.'/.claude/settings.local.json')['permissions'] ?? null);
+        self::assertSame(['mcpServers' => []], $this->json(self::PROJECT.'/.mcp.json'), 'Airlock\'s own server entry goes either way.');
+        self::assertStringContainsString('has no record of', $tester->getDisplay());
     }
 
     public function testADryRunWritesNothing(): void
@@ -99,7 +112,7 @@ final class ConnectCommandTest extends KernelTestCase
         self::assertStringContainsString('sets mcpServers.airlock', $tester->getDisplay());
     }
 
-    public function testTheFirstChangeKeepsTheFileAsItWasWithItsPermissions(): void
+    public function testTheFileAsItWasIsKeptOutOfReachAndReadableByItsOwnerOnly(): void
     {
         $original = '{"oauthAccount": {"emailAddress": "you@example.test"}}';
         $this->filesystem->dumpFile(self::HOME.'/.claude.json', $original);
@@ -107,9 +120,11 @@ final class ConnectCommandTest extends KernelTestCase
 
         $this->tester()->execute(['client' => 'claude-code', '--scope' => 'user']);
 
-        $backup = self::HOME.'/.claude.json'.ClientConfigFiles::BACKUP_SUFFIX;
-        self::assertStringEqualsFile($backup, $original);
-        self::assertSame(0o600, fileperms($backup) & 0o777, 'The copy of a file holding credentials is no more readable than the file.');
+        $records = glob(self::HOME.'/.config/airlock/originals/.claude.json-*.json');
+        self::assertIsArray($records);
+        self::assertCount(1, $records);
+        self::assertSame(0o600, fileperms($records[0]) & 0o777, 'The original of a file holding credentials is readable by its owner only.');
+        self::assertSame($original, RecordedResponses::at(json_decode((string) file_get_contents($records[0]), true), 'content'));
         self::assertSame(0o600, fileperms(self::HOME.'/.claude.json') & 0o777);
         self::assertNotNull(RecordedResponses::at($this->json(self::HOME.'/.claude.json'), 'mcpServers', 'airlock'));
     }

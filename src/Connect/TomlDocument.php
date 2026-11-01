@@ -74,32 +74,50 @@ final class TomlDocument
     public function replaceTable(string $table, array $lines): void
     {
         $replaced = false;
-        $sections = [];
+        $kept = [];
+        $trailing = [];
         foreach ($this->sections as $section) {
             if (!$this->isWithin($section->name, $table)) {
-                $sections[] = $section;
+                $kept[] = $section;
                 continue;
             }
+            $trailing = $section->trailingLines();
             if (!$replaced) {
-                $sections[] = new TomlSection($table, [...$lines, '']);
+                $kept[] = new TomlSection($table, $lines);
                 $replaced = true;
             }
         }
-        $this->sections = $sections;
         if (!$replaced) {
             $this->append(new TomlSection($table, [...$lines, '']));
+
+            return;
         }
+
+        $this->sections = $this->withoutEmptyList($kept);
+        $this->sectionNamed($table)?->addAll([] === $trailing ? [''] : $trailing);
     }
 
+    /**
+     * Removes the table and its subtables, but not the comments above the table after them.
+     */
     public function removeTable(string $table): void
     {
         $kept = [$this->sections[0]];
         foreach (\array_slice($this->sections, 1) as $section) {
             if (!$this->isWithin($section->name, $table)) {
                 $kept[] = $section;
+                continue;
             }
+            $previous = $kept[\count($kept) - 1];
+            $trailing = $section->trailingLines();
+            $previous->addAll($previous->endsWithBlankLine() ? $this->withoutLeadingBlankLines($trailing) : $trailing);
         }
         $this->sections = $kept;
+    }
+
+    public function keyLine(string $table, string $key): ?string
+    {
+        return $this->sectionNamed($table)?->keyLine($key);
     }
 
     public function setKey(string $table, string $key, string $line): void
@@ -133,6 +151,41 @@ final class TomlDocument
             $last->add('');
         }
         $this->sections[] = $table;
+    }
+
+    private function sectionNamed(string $table): ?TomlSection
+    {
+        foreach ($this->sections as $section) {
+            if ($section->name === $table) {
+                return $section;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<TomlSection> $sections
+     *
+     * @return non-empty-list<TomlSection>
+     */
+    private function withoutEmptyList(array $sections): array
+    {
+        return [] === $sections ? [new TomlSection('', [])] : $sections;
+    }
+
+    /**
+     * @param list<string> $lines
+     *
+     * @return list<string>
+     */
+    private function withoutLeadingBlankLines(array $lines): array
+    {
+        while ([] !== $lines && '' === trim($lines[0])) {
+            array_shift($lines);
+        }
+
+        return $lines;
     }
 
     private function isWithin(string $section, string $table): bool

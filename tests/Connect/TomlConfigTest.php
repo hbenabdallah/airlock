@@ -6,8 +6,8 @@ namespace App\Tests\Connect;
 
 use App\Connect\ConfigPath;
 use App\Connect\ConfigTable;
-use App\Connect\Direction;
 use App\Connect\SetEntry;
+use App\Connect\SetShared;
 use App\Connect\TomlConfig;
 use App\Connect\UnsupportedConfigException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -27,7 +27,7 @@ final class TomlConfigTest extends TestCase
 
     public function testAMissingFileGetsTheServerTableAndTheFeature(): void
     {
-        self::assertSame(self::CONNECTED, new TomlConfig()->edit('', $this->changes(), Direction::Connect));
+        self::assertSame(self::CONNECTED, new TomlConfig()->connect('', $this->changes()));
     }
 
     public function testCommentsAndOtherTablesAreKeptAsTheyWere(): void
@@ -60,12 +60,12 @@ final class TomlConfigTest extends TestCase
             command = "/bin/airlock"
             args = ["mcp:server"]
 
-            TOML, new TomlConfig()->edit($existing, $this->changes(), Direction::Connect));
+            TOML, new TomlConfig()->connect($existing, $this->changes()));
     }
 
     public function testAnEnabledShellToolIsTurnedOffInPlace(): void
     {
-        $content = new TomlConfig()->edit("[features]\nshell_tool = true\nweb_search = true\n", $this->changes(), Direction::Connect);
+        $content = new TomlConfig()->connect("[features]\nshell_tool = true\nweb_search = true\n", $this->changes());
 
         self::assertStringContainsString("[features]\nshell_tool = false\nweb_search = true\n", $content);
     }
@@ -74,24 +74,49 @@ final class TomlConfigTest extends TestCase
     {
         $existing = "[mcp_servers.airlock]\ncommand = \"old\"\n\n[mcp_servers.airlock.env]\nX = \"1\"\n\n[features]\nshell_tool = false\n";
 
-        self::assertSame(self::CONNECTED, new TomlConfig()->edit($existing, $this->changes(), Direction::Connect));
+        self::assertSame(self::CONNECTED, new TomlConfig()->connect($existing, $this->changes()));
     }
 
     public function testConnectingTwiceChangesNothingTheSecondTime(): void
     {
-        self::assertSame(self::CONNECTED, new TomlConfig()->edit(self::CONNECTED, $this->changes(), Direction::Connect));
+        self::assertSame(self::CONNECTED, new TomlConfig()->connect(self::CONNECTED, $this->changes()));
     }
 
     public function testDisconnectingRemovesTheTableAndTheKey(): void
     {
-        self::assertSame("[features]\n", new TomlConfig()->edit(self::CONNECTED, $this->changes(), Direction::Disconnect));
+        self::assertSame("[features]\n", new TomlConfig()->disconnect(self::CONNECTED, $this->changes(), ''));
+    }
+
+    public function testAShellToolTheUserHadTurnedOffStaysOff(): void
+    {
+        $original = "[features]\nshell_tool = false # mine\n";
+        $connected = new TomlConfig()->connect($original, $this->changes());
+
+        self::assertStringEndsWith("[features]\nshell_tool = false # mine\n", new TomlConfig()->disconnect($connected, $this->changes(), $original));
+    }
+
+    public function testWithoutTheOriginalTheFeatureIsLeftAsItIs(): void
+    {
+        self::assertSame("[features]\nshell_tool = false\n", new TomlConfig()->disconnect(self::CONNECTED, $this->changes(), null));
+    }
+
+    public function testTheCommentAboveTheNextTableSurvivesReplacingAndRemovingAirlocks(): void
+    {
+        $existing = "[mcp_servers.airlock]\ncommand = \"old\"\n\n# GitHub server\n[mcp_servers.github]\ncommand = \"gh\"\n";
+
+        $connected = new TomlConfig()->connect($existing, $this->changes());
+        $disconnected = new TomlConfig()->disconnect($connected, $this->changes(), '');
+
+        self::assertStringContainsString("args = [\"mcp:server\"]\n\n# GitHub server\n[mcp_servers.github]\n", $connected);
+        self::assertSame($connected, new TomlConfig()->connect($connected, $this->changes()), 'Connecting again keeps the comment where it is.');
+        self::assertStringStartsWith("# GitHub server\n[mcp_servers.github]\ncommand = \"gh\"\n", $disconnected);
     }
 
     public function testAHeaderInsideAMultiLineStringIsText(): void
     {
         $existing = "instructions = \"\"\"\n[features]\n\"\"\"\n";
 
-        $content = new TomlConfig()->edit($existing, $this->changes(), Direction::Connect);
+        $content = new TomlConfig()->connect($existing, $this->changes());
 
         self::assertStringStartsWith($existing."\n[mcp_servers.airlock]", $content);
         self::assertStringEndsWith("[features]\nshell_tool = false\n", $content);
@@ -112,17 +137,17 @@ final class TomlConfigTest extends TestCase
     {
         $this->expectException(UnsupportedConfigException::class);
 
-        new TomlConfig()->edit($existing, $this->changes(), Direction::Connect);
+        new TomlConfig()->connect($existing, $this->changes());
     }
 
     /**
-     * @return non-empty-list<SetEntry>
+     * @return non-empty-list<SetEntry|SetShared>
      */
     private function changes(): array
     {
         return [
             new SetEntry(ConfigPath::of('mcp_servers', 'airlock'), new ConfigTable(['command' => '/bin/airlock', 'args' => ['mcp:server']])),
-            new SetEntry(ConfigPath::of('features', 'shell_tool'), false),
+            new SetShared(ConfigPath::of('features', 'shell_tool'), false),
         ];
     }
 }

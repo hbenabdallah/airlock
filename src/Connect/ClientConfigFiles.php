@@ -7,15 +7,14 @@ namespace App\Connect;
 use Symfony\Component\Filesystem\Filesystem;
 
 /**
- * Reads and writes clients' configuration files. The first time Airlock changes a file, it keeps the file as it was
- * next to it, with the same permissions: some of these files hold the client's credentials.
+ * Reads and writes clients' configuration files, and keeps each one as it was before Airlock first changed it, so
+ * that disconnecting takes back what Airlock added and nothing the user had.
  */
 final readonly class ClientConfigFiles
 {
-    public const string BACKUP_SUFFIX = '.airlock-backup';
-
     public function __construct(
         private ConfigSyntaxes $syntaxes,
+        private ConnectionOriginals $originals,
         private Filesystem $filesystem = new Filesystem(),
     ) {
     }
@@ -27,24 +26,36 @@ final readonly class ClientConfigFiles
     {
         $exists = file_exists($edit->path);
         $before = $exists ? $this->read($edit->path) : '';
-        $after = $this->syntaxes->for($edit->format)->edit($before, $edit->changes, $direction);
+        $syntax = $this->syntaxes->for($edit->format);
         $changes = array_map(static fn (ConfigChange $change): string => $change->describe($direction), $edit->changes);
+        if (Direction::Connect === $direction) {
+            return new PlannedFile($edit->path, $exists, $before, $syntax->connect($before, $edit->changes), $changes);
+        }
 
-        return new PlannedFile($edit->path, $exists, $before, $after, $changes);
+        $original = $this->originals->of($edit->path);
+        $left = [];
+        if (null === $original) {
+            foreach ($edit->changes as $change) {
+                if ($change->isShared()) {
+                    $left[] = $change->path()->dotted();
+                }
+            }
+        }
+
+        return new PlannedFile($edit->path, $exists, $before, $syntax->disconnect($before, $edit->changes, $original), $changes, $left);
     }
 
-    public function write(PlannedFile $file): void
+    public function write(PlannedFile $file, Direction $direction): void
     {
-        if (!$file->isChanged()) {
-            return;
+        if (Direction::Connect === $direction) {
+            $this->originals->keep($file->path, $file->exists, $file->before);
         }
-
-        $backup = $file->path.self::BACKUP_SUFFIX;
-        if ($file->exists && !file_exists($backup)) {
-            $this->filesystem->dumpFile($backup, $file->before);
-            $this->filesystem->chmod($backup, fileperms($file->path) & 0o777);
+        if ($file->isChanged()) {
+            $this->filesystem->dumpFile($file->path, $file->after);
         }
-        $this->filesystem->dumpFile($file->path, $file->after);
+        if (Direction::Disconnect === $direction) {
+            $this->originals->forget($file->path);
+        }
     }
 
     private function read(string $path): string

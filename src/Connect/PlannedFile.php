@@ -11,6 +11,7 @@ final readonly class PlannedFile
 {
     /**
      * @param list<string> $changes what Airlock changes in it, in words
+     * @param list<string> $left    shared settings disconnecting leaves as they are, with no record of the original
      */
     public function __construct(
         public string $path,
@@ -18,6 +19,7 @@ final readonly class PlannedFile
         public string $before,
         public string $after,
         public array $changes,
+        public array $left = [],
     ) {
     }
 
