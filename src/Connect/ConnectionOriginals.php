@@ -27,12 +27,13 @@ final readonly class ConnectionOriginals
     public function keep(string $path, bool $exists, string $content): void
     {
         $record = $this->recordPath($path);
+        $directory = \dirname($record);
+        $this->filesystem->mkdir($directory, 0o700);
+        $this->filesystem->chmod($directory, 0o700);
         if (null !== $this->of($path)) {
             return;
         }
 
-        $directory = \dirname($record);
-        $this->filesystem->mkdir($directory, 0o700);
         $temporary = $this->filesystem->tempnam($directory, '.original-');
         try {
             $this->filesystem->chmod($temporary, 0o600);

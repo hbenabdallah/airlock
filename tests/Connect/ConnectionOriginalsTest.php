@@ -99,4 +99,15 @@ final class ConnectionOriginalsTest extends TestCase
         self::assertIsArray($entries);
         self::assertSame([basename($record)], array_values(array_diff($entries, ['.', '..'])), 'The temporary record is removed when the rename fails.');
     }
+
+    public function testADirectoryAnEarlierVersionLeftOpenIsClosed(): void
+    {
+        $this->originals->keep('/project/.mcp.json', true, '{}');
+        $directory = \dirname($this->originals->recordPath('/project/.mcp.json'));
+        $this->filesystem->chmod($directory, 0o755);
+
+        $this->originals->keep('/project/.mcp.json', true, '{"second": true}');
+
+        self::assertSame(0o700, fileperms($directory) & 0o777, 'Other users cannot list which client files Airlock kept.');
+    }
 }
