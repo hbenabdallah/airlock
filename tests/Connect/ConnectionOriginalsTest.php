@@ -1,0 +1,69 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Connect;
+
+use App\Configuration\ConfigDirectory;
+use App\Connect\ConnectionOriginals;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Filesystem\Filesystem;
+
+final class ConnectionOriginalsTest extends TestCase
+{
+    private const string HOME = __DIR__.'/../../var/test-connection-originals';
+
+    private Filesystem $filesystem;
+
+    private ConnectionOriginals $originals;
+
+    #[\Override]
+    protected function setUp(): void
+    {
+        $this->filesystem = new Filesystem();
+        $this->filesystem->remove(self::HOME);
+        $this->originals = new ConnectionOriginals(new ConfigDirectory(self::HOME));
+    }
+
+    #[\Override]
+    protected function tearDown(): void
+    {
+        $this->filesystem->remove(self::HOME);
+    }
+
+    public function testTheFirstOriginalIsTheOneKept(): void
+    {
+        $this->originals->keep('/project/.mcp.json', true, '{"first": true}');
+        $this->originals->keep('/project/.mcp.json', true, '{"second": true}');
+
+        self::assertSame('{"first": true}', $this->originals->of('/project/.mcp.json'));
+    }
+
+    public function testAFileThatDidNotExistIsKeptAsEmpty(): void
+    {
+        $this->originals->keep('/project/.mcp.json', false, '');
+
+        self::assertSame('', $this->originals->of('/project/.mcp.json'));
+    }
+
+    public function testTheRecordIsReadableByItsOwnerOnly(): void
+    {
+        $this->originals->keep('/home/you/.claude.json', true, '{"oauthAccount": {}}');
+
+        $record = $this->originals->recordPath('/home/you/.claude.json');
+        self::assertSame(0o600, fileperms($record) & 0o777);
+        self::assertSame(0o700, fileperms(\dirname($record)) & 0o777);
+        $entries = scandir(\dirname($record));
+        self::assertIsArray($entries);
+        self::assertSame([basename($record)], array_values(array_diff($entries, ['.', '..'])), 'No temporary file is left behind.');
+    }
+
+    public function testARecordLeftEmptyIsReplacedByTheOriginal(): void
+    {
+        $this->filesystem->dumpFile($this->originals->recordPath('/project/.mcp.json'), '');
+
+        $this->originals->keep('/project/.mcp.json', true, '{"theme": "dark"}');
+
+        self::assertSame('{"theme": "dark"}', $this->originals->of('/project/.mcp.json'));
+    }
+}
