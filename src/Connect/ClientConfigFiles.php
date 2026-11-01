@@ -86,7 +86,7 @@ final readonly class ClientConfigFiles
             return !$file->exists;
         }
 
-        return $file->exists && $this->read($file->path) === $file->before;
+        return $file->exists && is_file($file->path) && $this->read($file->path) === $file->before;
     }
 
     private function read(string $path): string

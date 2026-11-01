@@ -71,6 +71,19 @@ final class ClientConfigFilesTest extends TestCase
         $files->writeAll($planned, Direction::Connect);
     }
 
+    public function testAFileReplacedByADirectoryStopsTheWriteAsAChange(): void
+    {
+        $files = $this->files();
+        $this->filesystem->dumpFile(self::ROOT.'/first.json', '{}');
+        $planned = [$files->plan($this->edit(self::ROOT.'/first.json'), Direction::Connect)];
+        $this->filesystem->remove(self::ROOT.'/first.json');
+        $this->filesystem->mkdir(self::ROOT.'/first.json');
+
+        $this->expectException(ConfigChangedException::class);
+
+        $files->writeAll($planned, Direction::Connect);
+    }
+
     private function files(): ClientConfigFiles
     {
         return new ClientConfigFiles(
