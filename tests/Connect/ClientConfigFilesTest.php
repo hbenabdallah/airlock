@@ -19,6 +19,7 @@ use App\Connect\TomlConfig;
 use App\Connect\YamlConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
 
 final class ClientConfigFilesTest extends TestCase
 {
@@ -78,6 +79,18 @@ final class ClientConfigFilesTest extends TestCase
         $planned = [$files->plan($this->edit(self::ROOT.'/first.json'), Direction::Connect)];
         $this->filesystem->remove(self::ROOT.'/first.json');
         $this->filesystem->mkdir(self::ROOT.'/first.json');
+
+        $this->expectException(ConfigChangedException::class);
+
+        $files->writeAll($planned, Direction::Connect);
+    }
+
+    public function testAFileReplacedByAnotherProcessIsSeenAsChanged(): void
+    {
+        $files = $this->files();
+        $this->filesystem->dumpFile(self::ROOT.'/first.json', '{}');
+        $planned = [$files->plan($this->edit(self::ROOT.'/first.json'), Direction::Connect)];
+        new Process(['sh', '-c', 'rm "$0" && mkdir "$0"', self::ROOT.'/first.json'])->mustRun();
 
         $this->expectException(ConfigChangedException::class);
 

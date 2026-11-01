@@ -82,6 +82,7 @@ final readonly class ClientConfigFiles
 
     private function isAsPlanned(PlannedFile $file): bool
     {
+        clearstatcache(true, $file->path);
         if (!file_exists($file->path)) {
             return !$file->exists;
         }
