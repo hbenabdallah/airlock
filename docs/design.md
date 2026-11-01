@@ -64,7 +64,9 @@ files where the client allows it (Claude Code's deny rules, Codex's
 `shell_tool` feature, Goose's tool filter), and says what to do by hand where
 no file can (Cursor, VS Code). It edits those files in place and keeps what
 else they hold: a JSON file with comments, or a TOML table written as dotted
-keys, is left to the user rather than rewritten.
+keys, is left to the user rather than rewritten. It keeps each file as it was
+before it first changed it, in its own directory, and `--remove` reads that
+to put back a setting the user had rather than delete it.
 
 Sampling, which once let a server borrow the client's model, is deprecated since
 2026-07-28 in favour of calling a provider directly — which is what Airlock does

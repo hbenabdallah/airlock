@@ -166,10 +166,10 @@ without Airlock.
 | VS Code | `vscode` | `.vscode/mcp.json` | Turn its terminal tool off in the chat's tool picker |
 | Goose | `goose` | `~/.config/goose/config.yaml` | The developer extension keeps `write`, `edit` and `tree` |
 
-- It shows every change and asks before writing. The first time it changes a file, the file as it was stays next to
-  it, as `<file>.airlock-backup`, with the same permissions.
+- It shows every change and asks before writing. The first time it changes a file, it keeps the file as it was in
+  `~/.config/airlock/originals/`, readable by you only: some of these files hold the client's credentials.
 - `--dry-run` shows the changes and writes nothing; `--check` says whether Airlock is connected; `--remove` takes back
-  what connecting added, and only that.
+  what connecting added and puts back what you had, such as a tool you had denied yourself.
 - A file it cannot edit without risk (JSON with comments, a TOML table written as dotted keys) is left as it is: it
   says what to change by hand.
 - The project files hold this machine's paths: keep them out of version control.
