@@ -10,6 +10,7 @@ use App\Connect\ClientConfigFiles;
 use App\Connect\ClientConnector;
 use App\Connect\ClientConnectors;
 use App\Connect\ConfigChange;
+use App\Connect\ConfigChangedException;
 use App\Connect\ConnectionContext;
 use App\Connect\Direction;
 use App\Connect\FileEdit;
@@ -144,6 +145,9 @@ final class ConnectCommand extends Command
     {
         $pending = array_values(array_filter($planned, static fn (PlannedFile $file): bool => $file->isChanged()));
         if ([] === $pending) {
+            if (Direction::Disconnect === $direction && true !== $input->getOption('dry-run') && !$this->wroteAll($io, $planned, $direction)) {
+                return Command::FAILURE;
+            }
             $io->success(\sprintf('Airlock is already %s %s: nothing to change.', $this->state($direction), $client->label()));
 
             return Command::SUCCESS;
@@ -161,8 +165,8 @@ final class ConnectCommand extends Command
             return Command::FAILURE;
         }
 
-        foreach ($planned as $file) {
-            $this->files->write($file, $direction);
+        if (!$this->wroteAll($io, $planned, $direction)) {
+            return Command::FAILURE;
         }
         $io->success(\sprintf('Airlock is %s %s. Restart %s so that it reads its new configuration.', $this->state($direction), $client->label(), $client->label()));
         if (Direction::Connect === $direction && [] !== $notes) {
@@ -171,6 +175,22 @@ final class ConnectCommand extends Command
         $this->warnAboutWhatWasLeft($io, $planned);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<PlannedFile> $planned
+     */
+    private function wroteAll(SymfonyStyle $io, array $planned, Direction $direction): bool
+    {
+        try {
+            $this->files->writeAll($planned, $direction);
+        } catch (ConfigChangedException $e) {
+            $io->error(\sprintf('%s: nothing was written. Run this command again to see the changes on the file as it is now.', $e->getMessage()));
+
+            return false;
+        }
+
+        return true;
     }
 
     /**

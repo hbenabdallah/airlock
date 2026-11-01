@@ -21,32 +21,45 @@ final readonly class ConnectionOriginals
     }
 
     /**
-     * Keeps the file as it is now, unless Airlock already kept it: the first original is the one that counts.
+     * Keeps the file as it is now, unless Airlock already kept it: the first original is the one that counts. The
+     * record appears whole or not at all, and readable by its owner only from the start.
      */
     public function keep(string $path, bool $exists, string $content): void
     {
         $record = $this->recordPath($path);
-        if (file_exists($record)) {
+        $directory = \dirname($record);
+        $this->filesystem->mkdir($directory, 0o700);
+        $this->filesystem->chmod($directory, 0o700);
+        if (null !== $this->of($path)) {
             return;
         }
 
-        $this->filesystem->dumpFile($record, '');
-        $this->filesystem->chmod($record, 0o600);
-        $this->filesystem->dumpFile($record, json_encode(['path' => $path, 'existed' => $exists, 'content' => $content], \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR));
+        $temporary = $this->filesystem->tempnam($directory, '.original-');
+        try {
+            $this->filesystem->chmod($temporary, 0o600);
+            $this->filesystem->appendToFile($temporary, json_encode(['path' => $path, 'existed' => $exists, 'content' => $content], \JSON_UNESCAPED_SLASHES | \JSON_THROW_ON_ERROR));
+            $this->filesystem->rename($temporary, $record, true);
+        } finally {
+            $this->filesystem->remove($temporary);
+        }
     }
 
     /**
-     * The file as it was, '' when it did not exist, null when Airlock has no record of it.
+     * The file as it was, '' when it did not exist, null when Airlock has no record of it it can read.
      */
     public function of(string $path): ?string
     {
         $record = $this->recordPath($path);
-        if (!is_file($record)) {
+        if (!is_file($record) || !is_readable($record)) {
+            return null;
+        }
+        $content = file_get_contents($record);
+        if (false === $content) {
             return null;
         }
 
         try {
-            $kept = json_decode((string) file_get_contents($record), true, 512, \JSON_THROW_ON_ERROR);
+            $kept = json_decode($content, true, 512, \JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             return null;
         }

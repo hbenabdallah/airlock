@@ -155,6 +155,29 @@ final class ConnectCommandTest extends KernelTestCase
         self::assertFileDoesNotExist(self::ROOT.'/codex/config.toml');
     }
 
+    public function testARemovalWithNothingToChangeStillEndsTheConnection(): void
+    {
+        $this->tester()->execute(['client' => 'claude-code']);
+        $this->filesystem->remove([self::PROJECT.'/.mcp.json', self::PROJECT.'/.claude/settings.local.json']);
+
+        $status = $this->tester()->execute(['client' => 'claude-code', '--remove' => true]);
+
+        self::assertSame(Command::SUCCESS, $status);
+        self::assertSame([], $this->originals(), 'A later connection starts from the files as they are then, not from these originals.');
+    }
+
+    public function testADryRunRemovalKeepsTheOriginals(): void
+    {
+        $this->tester()->execute(['client' => 'claude-code']);
+        $this->filesystem->remove([self::PROJECT.'/.mcp.json', self::PROJECT.'/.claude/settings.local.json']);
+        $originals = $this->originals();
+
+        $this->tester()->execute(['client' => 'claude-code', '--remove' => true, '--dry-run' => true]);
+
+        self::assertCount(2, $originals, 'Connecting kept the original of .mcp.json and of settings.local.json.');
+        self::assertSame($originals, $this->originals(), 'A dry run writes nothing, records included.');
+    }
+
     public function testCodexIsConfiguredWhereCodexHomeSays(): void
     {
         $_SERVER['CODEX_HOME'] = $_ENV['CODEX_HOME'] = self::ROOT.'/codex';
@@ -229,6 +252,28 @@ final class ConnectCommandTest extends KernelTestCase
         $connectors = self::getContainer()->get(ClientConnectors::class);
 
         self::assertSame($client, $connectors->for($client)->client());
+    }
+
+    /**
+     * Every original record, hidden ones included, by name.
+     *
+     * @return array<string, string>
+     */
+    private function originals(): array
+    {
+        $directory = self::HOME.'/.config/airlock/originals';
+        if (!is_dir($directory)) {
+            return [];
+        }
+        $records = [];
+        foreach (new \FilesystemIterator($directory) as $record) {
+            if ($record instanceof \SplFileInfo) {
+                $records[$record->getFilename()] = (string) file_get_contents($record->getPathname());
+            }
+        }
+        ksort($records);
+
+        return $records;
     }
 
     private function tester(): CommandTester

@@ -47,7 +47,27 @@ final readonly class ClientConfigFiles
         return new PlannedFile($edit->path, $exists, $before, $after, $changes, $left);
     }
 
-    public function write(PlannedFile $file, Direction $direction): void
+    /**
+     * Writes the planned files, or none of them when one changed since it was planned, such as while the user was
+     * asked to confirm.
+     *
+     * @param list<PlannedFile> $files
+     *
+     * @throws ConfigChangedException
+     */
+    public function writeAll(array $files, Direction $direction): void
+    {
+        foreach ($files as $file) {
+            if (!$this->isAsPlanned($file)) {
+                throw new ConfigChangedException(\sprintf('%s changed since Airlock read it', $file->path));
+            }
+        }
+        foreach ($files as $file) {
+            $this->write($file, $direction);
+        }
+    }
+
+    private function write(PlannedFile $file, Direction $direction): void
     {
         if ($file->isChanged()) {
             if (Direction::Connect === $direction) {
@@ -58,6 +78,16 @@ final readonly class ClientConfigFiles
         if (Direction::Disconnect === $direction) {
             $this->originals->forget($file->path);
         }
+    }
+
+    private function isAsPlanned(PlannedFile $file): bool
+    {
+        clearstatcache(true, $file->path);
+        if (!file_exists($file->path)) {
+            return !$file->exists;
+        }
+
+        return $file->exists && is_file($file->path) && $this->read($file->path) === $file->before;
     }
 
     private function read(string $path): string
