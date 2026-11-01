@@ -143,6 +143,18 @@ final class ConnectCommandTest extends KernelTestCase
         self::assertCount(1, $kept);
     }
 
+    public function testRemovingDoesNotBringBackAFileTheUserDeleted(): void
+    {
+        $_SERVER['CODEX_HOME'] = $_ENV['CODEX_HOME'] = self::ROOT.'/codex';
+        $this->filesystem->dumpFile(self::ROOT.'/codex/config.toml', "[features]\nshell_tool = false\n");
+        $this->tester()->execute(['client' => 'codex']);
+        $this->filesystem->remove(self::ROOT.'/codex/config.toml');
+
+        $this->tester()->execute(['client' => 'codex', '--remove' => true]);
+
+        self::assertFileDoesNotExist(self::ROOT.'/codex/config.toml');
+    }
+
     public function testCodexIsConfiguredWhereCodexHomeSays(): void
     {
         $_SERVER['CODEX_HOME'] = $_ENV['CODEX_HOME'] = self::ROOT.'/codex';

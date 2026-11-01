@@ -42,7 +42,9 @@ final readonly class ClientConfigFiles
             }
         }
 
-        return new PlannedFile($edit->path, $exists, $before, $syntax->disconnect($before, $edit->changes, $original), $changes, $left);
+        $after = $exists ? $syntax->disconnect($before, $edit->changes, $original) : $before;
+
+        return new PlannedFile($edit->path, $exists, $before, $after, $changes, $left);
     }
 
     public function write(PlannedFile $file, Direction $direction): void
